@@ -47,7 +47,6 @@ def update_watchtime():
 @app.route('/get-watchtime', methods=['GET'])
 def get_watchtime():
     uniqueIdentifier = request.args.get('uniqueIdentifier')  # Get unique identifier from query params
-    print(uniqueIdentifier)
     # Fetch watchtime data for the specified user
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()

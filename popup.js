@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updatePopupUI();
 
     // Set up a timer to update the popup UI every 5 seconds
-    const updateInterval = setInterval(updatePopupUI, 5000); // 5000ms = 5 seconds
+    const updateInterval = setInterval(updatePopupUI, 120000); // 120000ms = 120 seconds
 
     // Clean up the interval when the popup is closed
     window.addEventListener('unload', () => {

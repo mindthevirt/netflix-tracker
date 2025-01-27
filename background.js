@@ -3,6 +3,8 @@ let isTracking = false;
 let netflixTabId = null;
 let uniqueIdentifier = null;
 let activeWatching = false;
+let sessionStartTime;
+let periodicUpdateInterval;
 
 // Generate or retrieve a unique identifier
 chrome.storage.local.get(['uniqueIdentifier'], (result) => {
@@ -76,6 +78,7 @@ function stopTracking() {
     isTracking = false;
     activeWatching = false;
     clearInterval(timer);
+    clearInterval(periodicUpdateInterval); // Clear the periodic update interval
   }
 }
 
@@ -103,6 +106,7 @@ function startActiveTracking() {
     console.log('Active watching started.'); // Debugging
     activeWatching = true;
     startTrackingSession();
+    startPeriodicUpdates(); // Start periodic updates
   }
 }
 
@@ -111,10 +115,9 @@ function stopActiveTracking() {
     console.log('Active watching stopped.'); // Debugging
     activeWatching = false;
     stopTrackingSession();
+    clearInterval(periodicUpdateInterval); // Stop periodic updates
   }
 }
-
-let sessionStartTime;
 
 function startTrackingSession() {
   sessionStartTime = Date.now();
@@ -129,6 +132,17 @@ function stopTrackingSession() {
   const sessionDuration = Date.now() - sessionStartTime;
   console.log('Session stopped. Duration:', sessionDuration, 'ms');
   updateWatchtime(sessionDuration);
+}
+
+function startPeriodicUpdates() {
+  // Send updates every 60 seconds (60000 milliseconds)
+  periodicUpdateInterval = setInterval(() => {
+    if (sessionStartTime) {
+      const sessionDuration = Date.now() - sessionStartTime;
+      console.log('Sending periodic update. Duration:', sessionDuration, 'ms');
+      updateWatchtime(sessionDuration);
+    }
+  }, 60000); // 60 seconds
 }
 
 function updateWatchtime(duration) {
