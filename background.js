@@ -17,7 +17,7 @@ chrome.storage.local.get(['uniqueIdentifier'], (result) => {
       });
     }
     chrome.storage.local.set({ uniqueIdentifier: uniqueIdentifier }, () => {
-      console.log('Generated unique identifier:', uniqueIdentifier);
+      console.log('Stored unique identifier:', uniqueIdentifier);
     });
   } else {
     uniqueIdentifier = result.uniqueIdentifier;
@@ -41,10 +41,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 // Handle idle state changes
 chrome.idle.onStateChanged.addListener((newState) => {
   console.log('Idle state changed:', newState); // Debugging
-  if (newState === 'active') {
-    if (netflixTabId) {
-      startTracking();
-    }
+  if (newState === 'active' && netflixTabId) {
+    startTracking();
   } else {
     stopTracking();
   }
@@ -52,22 +50,15 @@ chrome.idle.onStateChanged.addListener((newState) => {
 
 function checkTabAndTrack(tabId) {
   chrome.tabs.get(tabId, function(tab) {
-    if (chrome.runtime.lastError) {
-      console.error('Error in checkTabAndTrack:', chrome.runtime.lastError);
+    if (chrome.runtime.lastError || !tab.url || !tab.url.includes('netflix.com')) {
+      console.log('Not a Netflix tab or tab error:', chrome.runtime.lastError);
       netflixTabId = null;
       stopTracking();
       return;
     }
-
-    if (tab.url && tab.url.includes('netflix.com')) {
-      console.log('Netflix tab detected. Starting tracking...'); // Debugging
-      netflixTabId = tabId;
-      startTracking();
-    } else if (netflixTabId === tabId) {
-      console.log('Leaving Netflix tab. Stopping tracking...'); // Debugging
-      netflixTabId = null;
-      stopTracking();
-    }
+    console.log('Netflix tab detected. Starting tracking...'); // Debugging
+    netflixTabId = tabId;
+    startTracking();
   });
 }
 
@@ -89,13 +80,15 @@ function stopTracking() {
 }
 
 function checkActiveWatching() {
-  chrome.tabs.sendMessage(netflixTabId, { action: 'checkActiveWatching' }, (response) => {
+  chrome.tabs.get(netflixTabId, (tab) => {
     if (chrome.runtime.lastError) {
-      console.error('Error sending message to content script:', chrome.runtime.lastError);
+      console.error('Error getting tab:', chrome.runtime.lastError);
+      activeWatching = false;
+      stopActiveTracking();
       return;
     }
 
-    if (response && response.activeWatching) {
+    if (tab && tab.active) {
       activeWatching = true;
       startActiveTracking();
     } else {
@@ -109,7 +102,7 @@ function startActiveTracking() {
   if (!activeWatching) {
     console.log('Active watching started.'); // Debugging
     activeWatching = true;
-    timer = setInterval(updateWatchtime, 60000); // Track every minute
+    startTrackingSession();
   }
 }
 
@@ -117,20 +110,32 @@ function stopActiveTracking() {
   if (activeWatching) {
     console.log('Active watching stopped.'); // Debugging
     activeWatching = false;
-    clearInterval(timer);
-    updateWatchtime();
+    stopTrackingSession();
   }
 }
 
-function updateWatchtime() {
-  console.log('Updating watchtime...'); // Debugging
-  const elapsed = 60000; // 1 minute in milliseconds
+let sessionStartTime;
 
-  // Send data to Flask app
-  sendDataToFlask(elapsed);
+function startTrackingSession() {
+  sessionStartTime = Date.now();
+  console.log('Session started at:', new Date(sessionStartTime).toISOString(), 'Start time:', sessionStartTime);
 }
 
-// Function to send data to Flask app
+function stopTrackingSession() {
+  if (!sessionStartTime) {
+    console.error('Session start time is not set!');
+    return;
+  }
+  const sessionDuration = Date.now() - sessionStartTime;
+  console.log('Session stopped. Duration:', sessionDuration, 'ms');
+  updateWatchtime(sessionDuration);
+}
+
+function updateWatchtime(duration) {
+  console.log('Updating watchtime with duration:', duration, 'ms');
+  sendDataToFlask(duration);
+}
+
 function sendDataToFlask(watchtime) {
   console.log('Sending data to Flask app...'); // Debugging
   const url = 'http://188.245.162.217:2523/update'; // Flask app URL
@@ -156,3 +161,11 @@ function sendDataToFlask(watchtime) {
       console.error('Error sending data to Flask app:', error);
     });
 }
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'videoStart') {
+    startActiveTracking();
+  } else if (request.action === 'videoStop') {
+    stopActiveTracking();
+  }
+});

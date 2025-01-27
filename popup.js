@@ -17,15 +17,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to fetch watchtime data from Flask app
     async function fetchWatchtimeData() {
-      const url = `http://188.245.162.217:2523/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`; // Include unique identifier
+      const url = `http://188.245.162.217:2523/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`;
+      console.log('Fetching watchtime data from:', url); // Debugging
 
       try {
-        console.log('Fetching watchtime data from:', url); // Debugging
         const response = await fetch(url);
         const data = await response.json();
 
+        console.log('Fetched watchtime data:', data); // Debugging
+
         if (data.status === 'success') {
-          console.log('Fetched watchtime data:', data.data); // Debugging
           return data.data;
         } else {
           console.error('Failed to fetch watchtime data:', data);
@@ -61,6 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const day = new Date(entry.timestamp).getDay(); // 0 (Sunday) to 6 (Saturday)
         dailyWatchtime[day] += entry.watchtime / 60000; // Convert to minutes
       });
+      
+      if (!ctx) {
+        console.error('Chart context not found');
+        return;
+      }
 
       // Initialize or update the chart
       if (ctx) {
@@ -108,23 +114,23 @@ document.addEventListener('DOMContentLoaded', () => {
       clearInterval(updateInterval);
       console.log('Popup closed. Update interval cleared.'); // Log when popup is closed
     });
+
+    // Button event handlers
+    if (settingsButton) {
+      settingsButton.addEventListener('click', () => {
+        chrome.runtime.openOptionsPage();
+      });
+    } else {
+      console.error('Settings button not found');
+    }
+
+    if (exportButton) {
+      exportButton.addEventListener('click', () => {
+        // TODO: Implement data export
+        alert('Export feature coming soon!');
+      });
+    } else {
+      console.error('Export button not found');
+    }
   });
-
-  // Button event handlers
-  if (settingsButton) {
-    settingsButton.addEventListener('click', () => {
-      chrome.runtime.openOptionsPage();
-    });
-  } else {
-    console.error('Settings button not found');
-  }
-
-  if (exportButton) {
-    exportButton.addEventListener('click', () => {
-      // TODO: Implement data export
-      alert('Export feature coming soon!');
-    });
-  } else {
-    console.error('Export button not found');
-  }
 });
