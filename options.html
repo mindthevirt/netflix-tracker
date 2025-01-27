@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Netflix Tracker Settings</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Settings</h1>
+    
+    <div class="setting">
+      <label>
+        <input type="checkbox" id="trackingEnabled">
+        Enable Tracking
+      </label>
+    </div>
+
+    <div class="setting">
+      <label>
+        <input type="checkbox" id="notificationsEnabled">
+        Enable Weekly Notifications
+      </label>
+    </div>
+
+    <div class="setting">
+      <label>
+        Reset Watchtime:
+        <button id="resetButton">Reset</button>
+      </label>
+    </div>
+
+    <div class="setting">
+      <label>
+        Export Data:
+        <button id="exportButton">Export CSV</button>
+      </label>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
