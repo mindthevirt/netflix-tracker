@@ -2,6 +2,7 @@ let timer;
 let isTracking = false;
 let netflixTabId = null;
 let uniqueIdentifier = null;
+let activeWatching = false;
 
 // Generate or retrieve a unique identifier
 chrome.storage.local.get(['uniqueIdentifier'], (result) => {
@@ -74,7 +75,7 @@ function startTracking() {
   if (!isTracking) {
     console.log('Tracking started.'); // Debugging
     isTracking = true;
-    timer = setInterval(updateWatchtime, 60000); // Track every minute
+    checkActiveWatching();
   }
 }
 
@@ -82,6 +83,40 @@ function stopTracking() {
   if (isTracking) {
     console.log('Tracking stopped.'); // Debugging
     isTracking = false;
+    activeWatching = false;
+    clearInterval(timer);
+  }
+}
+
+function checkActiveWatching() {
+  chrome.tabs.sendMessage(netflixTabId, { action: 'checkActiveWatching' }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.error('Error sending message to content script:', chrome.runtime.lastError);
+      return;
+    }
+
+    if (response && response.activeWatching) {
+      activeWatching = true;
+      startActiveTracking();
+    } else {
+      activeWatching = false;
+      stopActiveTracking();
+    }
+  });
+}
+
+function startActiveTracking() {
+  if (!activeWatching) {
+    console.log('Active watching started.'); // Debugging
+    activeWatching = true;
+    timer = setInterval(updateWatchtime, 60000); // Track every minute
+  }
+}
+
+function stopActiveTracking() {
+  if (activeWatching) {
+    console.log('Active watching stopped.'); // Debugging
+    activeWatching = false;
     clearInterval(timer);
     updateWatchtime();
   }
