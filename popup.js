@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to fetch watchtime data from Flask app
     async function fetchWatchtimeData() {
-      const url = `http://127.0.0.1:5000/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`; // Include unique identifier
+      const url = `http://188.245.162.217:2523/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`; // Include unique identifier
 
       try {
         console.log('Fetching watchtime data from:', url); // Debugging

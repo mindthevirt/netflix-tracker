@@ -98,7 +98,7 @@ function updateWatchtime() {
 // Function to send data to Flask app
 function sendDataToFlask(watchtime) {
   console.log('Sending data to Flask app...'); // Debugging
-  const url = 'http://127.0.0.1:5000/update'; // Flask app URL
+  const url = 'http://188.245.162.217:2523/update'; // Flask app URL
   const data = {
     watchtime: watchtime,
     uniqueIdentifier: uniqueIdentifier // Include the unique identifier
