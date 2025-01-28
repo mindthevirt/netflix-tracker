@@ -11,13 +11,16 @@
   "permissions": [
     "tabs",
     "idle",
-    "storage"
+    "storage",
+    "alarms"
   ],
   "host_permissions": [
-    "*://*.netflix.com/*"
+    "*://*.netflix.com/*",
+    "http://188.245.162.217:2523/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {

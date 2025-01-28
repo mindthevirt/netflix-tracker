@@ -1,185 +1,208 @@
-let timer;
-let isTracking = false;
-let netflixTabId = null;
 let uniqueIdentifier = null;
-let activeWatching = false;
-let sessionStartTime;
-let periodicUpdateInterval;
+let activeWatching = new Map(); // Map of tabId to watching state
+let sessionTimes = new Map(); // Map of tabId to session info
+let pendingUpdates = [];
+const RETRY_DELAY = 5000;
+const ALARM_NAME = 'updateWatchtimeAlarm';
 
-// Generate or retrieve a unique identifier
-chrome.storage.local.get(['uniqueIdentifier'], (result) => {
-  if (!result.uniqueIdentifier) {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      uniqueIdentifier = crypto.randomUUID(); // Use crypto.randomUUID() if available
-    } else {
-      // Fallback to custom UUID generator
-      uniqueIdentifier = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+function debugLog(action, message, data = {}) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [${action}]`, message, data);
+}
+
+// Initialize alarms
+chrome.alarms.create(ALARM_NAME, {
+    periodInMinutes: 0.5 // Run every 30 seconds
+});
+
+// Listen for alarm events
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === ALARM_NAME) {
+        updateActiveSessions();
+    }
+});
+
+// Initialize unique identifier
+async function initializeUniqueIdentifier() {
+    try {
+        const result = await chrome.storage.local.get(['uniqueIdentifier']);
+        if (!result.uniqueIdentifier) {
+            uniqueIdentifier = crypto.randomUUID?.() || generateFallbackUUID();
+            await chrome.storage.local.set({ uniqueIdentifier });
+        } else {
+            uniqueIdentifier = result.uniqueIdentifier;
+        }
+        debugLog('Init', 'Unique identifier ready', { uniqueIdentifier });
+        processPendingUpdates();
+    } catch (error) {
+        console.error('Error initializing unique identifier:', error);
+        setTimeout(initializeUniqueIdentifier, RETRY_DELAY);
+    }
+}
+
+function generateFallbackUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
-      });
-    }
-    chrome.storage.local.set({ uniqueIdentifier: uniqueIdentifier }, () => {
-      console.log('Stored unique identifier:', uniqueIdentifier);
     });
-  } else {
-    uniqueIdentifier = result.uniqueIdentifier;
-    console.log('Retrieved unique identifier:', uniqueIdentifier);
-  }
+}
+
+// Start initialization
+initializeUniqueIdentifier();
+
+// Handle tab updates and URL changes
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.url) {
+        debugLog('Tab', `URL changed for tab ${tabId}`, { url: changeInfo.url });
+        if (!tab.url?.includes('netflix.com/watch/')) {
+            stopTrackingForTab(tabId);
+        }
+    }
 });
 
-// Start/stop tracking based on tab activity
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  console.log('Tab activated:', activeInfo.tabId); // Debugging
-  checkTabAndTrack(activeInfo.tabId);
+// Handle tab removal
+chrome.tabs.onRemoved.addListener((tabId) => {
+    debugLog('Tab', `Tab ${tabId} removed`);
+    stopTrackingForTab(tabId);
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.url) {
-    console.log('Tab updated:', tabId, changeInfo.url); // Debugging
-    checkTabAndTrack(tabId);
-  }
-});
-
-// Handle idle state changes
-chrome.idle.onStateChanged.addListener((newState) => {
-  console.log('Idle state changed:', newState); // Debugging
-  if (newState === 'active' && netflixTabId) {
-    startTracking();
-  } else {
-    stopTracking();
-  }
-});
-
-function checkTabAndTrack(tabId) {
-  chrome.tabs.get(tabId, function(tab) {
-    if (chrome.runtime.lastError || !tab.url || !tab.url.includes('netflix.com')) {
-      console.log('Not a Netflix tab or tab error:', chrome.runtime.lastError);
-      netflixTabId = null;
-      stopTracking();
-      return;
+// Keep service worker alive while tracking
+async function keepAlive() {
+    if (activeWatching.size > 0) {
+        const keepAlivePort = chrome.runtime.connect({ name: 'keepAlive' });
+        keepAlivePort.disconnect();
     }
-    console.log('Netflix tab detected. Starting tracking...'); // Debugging
-    netflixTabId = tabId;
-    startTracking();
-  });
 }
 
-function startTracking() {
-  if (!isTracking) {
-    console.log('Tracking started.'); // Debugging
-    isTracking = true;
-    checkActiveWatching();
-  }
+// Track video state for each tab
+function startTrackingForTab(tabId) {
+    const currentTime = Date.now();
+    debugLog('Tracking', `Starting tracking for tab ${tabId}`, { currentTime });
+    
+    sessionTimes.set(tabId, {
+        startTime: currentTime,
+        lastUpdateTime: currentTime
+    });
+    activeWatching.set(tabId, true);
+    
+    // Ensure service worker stays alive
+    keepAlive();
 }
 
-function stopTracking() {
-  if (isTracking) {
-    console.log('Tracking stopped.'); // Debugging
-    isTracking = false;
-    activeWatching = false;
-    clearInterval(timer);
-    clearInterval(periodicUpdateInterval); // Clear the periodic update interval
-  }
+function stopTrackingForTab(tabId) {
+    if (activeWatching.get(tabId)) {
+        const sessionInfo = sessionTimes.get(tabId);
+        if (sessionInfo) {
+            const currentTime = Date.now();
+            const duration = currentTime - sessionInfo.lastUpdateTime;
+            
+            debugLog('Tracking', `Stopping tracking for tab ${tabId}`, {
+                sessionStart: new Date(sessionInfo.startTime).toISOString(),
+                lastUpdate: new Date(sessionInfo.lastUpdateTime).toISOString(),
+                duration: duration
+            });
+
+            if (duration > 0) {
+                updateWatchtime(duration);
+            }
+        }
+        activeWatching.set(tabId, false);
+        sessionTimes.delete(tabId);
+    }
 }
 
-function checkActiveWatching() {
-  chrome.tabs.get(netflixTabId, (tab) => {
-    if (chrome.runtime.lastError) {
-      console.error('Error getting tab:', chrome.runtime.lastError);
-      activeWatching = false;
-      stopActiveTracking();
-      return;
+function updateActiveSessions() {
+    const currentTime = Date.now();
+    debugLog('Update', 'Running periodic update check', {
+        activeSessions: activeWatching.size
+    });
+    
+    for (const [tabId, isWatching] of activeWatching.entries()) {
+        if (isWatching) {
+            const sessionInfo = sessionTimes.get(tabId);
+            if (sessionInfo) {
+                const duration = currentTime - sessionInfo.lastUpdateTime;
+                
+                debugLog('Update', `Updating session for tab ${tabId}`, {
+                    duration: duration,
+                    lastUpdate: new Date(sessionInfo.lastUpdateTime).toISOString()
+                });
+
+                if (duration > 0) {
+                    updateWatchtime(duration);
+                    sessionInfo.lastUpdateTime = currentTime;
+                    sessionTimes.set(tabId, sessionInfo);
+                }
+            }
+        }
     }
 
-    if (tab && tab.active) {
-      activeWatching = true;
-      startActiveTracking();
-    } else {
-      activeWatching = false;
-      stopActiveTracking();
+    // Keep alive if still tracking
+    if (activeWatching.size > 0) {
+        keepAlive();
     }
-  });
-}
-
-function startActiveTracking() {
-  if (!activeWatching) {
-    console.log('Active watching started.'); // Debugging
-    activeWatching = true;
-    startTrackingSession();
-    startPeriodicUpdates(); // Start periodic updates
-  }
-}
-
-function stopActiveTracking() {
-  if (activeWatching) {
-    console.log('Active watching stopped.'); // Debugging
-    activeWatching = false;
-    stopTrackingSession();
-    clearInterval(periodicUpdateInterval); // Stop periodic updates
-  }
-}
-
-function startTrackingSession() {
-  sessionStartTime = Date.now();
-  console.log('Session started at:', new Date(sessionStartTime).toISOString(), 'Start time:', sessionStartTime);
-}
-
-function stopTrackingSession() {
-  if (!sessionStartTime) {
-    console.error('Session start time is not set!');
-    return;
-  }
-  const sessionDuration = Date.now() - sessionStartTime;
-  console.log('Session stopped. Duration:', sessionDuration, 'ms');
-  updateWatchtime(sessionDuration);
-}
-
-function startPeriodicUpdates() {
-  // Send updates every 60 seconds (60000 milliseconds)
-  periodicUpdateInterval = setInterval(() => {
-    if (sessionStartTime) {
-      const sessionDuration = Date.now() - sessionStartTime;
-      console.log('Sending periodic update. Duration:', sessionDuration, 'ms');
-      updateWatchtime(sessionDuration);
-    }
-  }, 60000); // 60 seconds
 }
 
 function updateWatchtime(duration) {
-  console.log('Updating watchtime with duration:', duration, 'ms');
-  sendDataToFlask(duration);
+    debugLog('Watchtime', 'Updating watchtime', { duration });
+    if (!uniqueIdentifier) {
+        debugLog('Watchtime', 'No identifier, queueing update', { duration });
+        pendingUpdates.push(duration);
+        return;
+    }
+    sendDataToFlask(duration);
 }
 
-function sendDataToFlask(watchtime) {
-  console.log('Sending data to Flask app...'); // Debugging
-  const url = 'http://188.245.162.217:2523/update'; // Flask app URL
-  const data = {
-    watchtime: watchtime,
-    uniqueIdentifier: uniqueIdentifier // Include the unique identifier
-  };
-
-  console.log('Data being sent:', data); // Debugging
-
-  fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  })
-    .then(response => response.json())
-    .then(data => {
-      console.log('Response from Flask app:', data);
-    })
-    .catch(error => {
-      console.error('Error sending data to Flask app:', error);
-    });
+async function processPendingUpdates() {
+    debugLog('Updates', `Processing ${pendingUpdates.length} pending updates`);
+    while (pendingUpdates.length > 0) {
+        const duration = pendingUpdates.shift();
+        await sendDataToFlask(duration);
+    }
 }
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'videoStart') {
-    startActiveTracking();
-  } else if (request.action === 'videoStop') {
-    stopActiveTracking();
-  }
+async function sendDataToFlask(watchtime) {
+    const url = 'http://188.245.162.217:2523/update';
+    const data = {
+        watchtime,
+        uniqueIdentifier
+    };
+
+    debugLog('API', 'Sending data to Flask', data);
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        debugLog('API', 'Watch time updated successfully', result);
+    } catch (error) {
+        console.error('Error sending data to Flask app:', error);
+        debugLog('API', 'Error sending data, will retry', { error: error.message });
+        setTimeout(() => sendDataToFlask(watchtime), RETRY_DELAY);
+    }
+}
+
+// Handle messages from content script
+chrome.runtime.onMessage.addListener((request, sender) => {
+    if (!sender.tab) return;
+    
+    const tabId = sender.tab.id;
+    debugLog('Message', `Received message for tab ${tabId}`, { action: request.action });
+    
+    if (request.action === 'videoStart') {
+        startTrackingForTab(tabId);
+    } else if (request.action === 'videoStop') {
+        stopTrackingForTab(tabId);
+    }
 });
