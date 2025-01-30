@@ -153,10 +153,38 @@ function createOverlay(watchtime) {
         <h1>Woah there, binge master!</h1>
         <p>${messages[0]}</p>
         <p>${messages[Math.floor(Math.random() * (messages.length - 1)) + 1]}</p>
-        <button id="netflix-limit-close">Just 5 more minutes...</button>
+        <div class="netflix-limit-buttons">
+            <button class="netflix-limit-extend" data-minutes="5">Just 5 more minutes...</button>
+            <button class="netflix-limit-extend" data-minutes="15">Give me 15 minutes</button>
+            <button class="netflix-limit-extend" data-minutes="30">Need 30 minutes!</button>
+        </div>
     `;
     
     document.body.appendChild(overlay);
+    
+    // Add styles for the buttons container
+    const style = document.createElement('style');
+    style.textContent = `
+        .netflix-limit-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .netflix-limit-extend {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(229, 9, 20, 0.8);
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .netflix-limit-extend:hover {
+            background: rgba(229, 9, 20, 1);
+        }
+    `;
+    document.head.appendChild(style);
     
     // Store the video state before pausing
     const wasPlaying = currentVideo && !currentVideo.paused;
@@ -182,27 +210,30 @@ function createOverlay(watchtime) {
         }
     }
 
-    function handleDismiss() {
+    function handleDismiss(minutes) {
         const overlay = document.querySelector('.netflix-limit-overlay');
         if (overlay) {
             overlay.remove();
             resumePlayback();
-            // Send message to extend watchtime by 5 minutes
-            chrome.runtime.sendMessage({ action: 'extendWatchtime', minutes: 5 });
+            // Send message to extend watchtime by specified minutes
+            chrome.runtime.sendMessage({ action: 'extendWatchtime', minutes: minutes });
         }
         document.removeEventListener('keydown', handleEscape);
     }
     
-    // Handle close button with a proper event listener
-    const closeButton = document.getElementById('netflix-limit-close');
-    if (closeButton) {
-        closeButton.addEventListener('click', handleDismiss, { once: true });
-    }
+    // Handle extend buttons with event delegation
+    overlay.addEventListener('click', (event) => {
+        const button = event.target.closest('.netflix-limit-extend');
+        if (button) {
+            const minutes = parseInt(button.dataset.minutes, 10);
+            handleDismiss(minutes);
+        }
+    });
 
-    // Add escape key handler
+    // Add escape key handler (default to 5 minutes when using escape)
     const handleEscape = (event) => {
         if (event.key === 'Escape') {
-            handleDismiss();
+            handleDismiss(5);
         }
     };
     
