@@ -123,6 +123,93 @@ function removeVideoListeners(video) {
     video.removeEventListener('seeked', handleSeeked);
 }
 
+function createOverlay(watchtime) {
+    console.log('Creating overlay with watchtime:', watchtime);
+    
+    // Remove any existing overlay first
+    const existingOverlay = document.querySelector('.netflix-limit-overlay');
+    if (existingOverlay) {
+        existingOverlay.remove();
+    }
+
+    // watchtime comes in as minutes already
+    const hours = Math.floor(watchtime / 60);
+    const minutes = Math.round(watchtime % 60);
+    
+    console.log('Calculated time:', { hours, minutes });
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'netflix-limit-overlay';
+    
+    const messages = [
+        `You've watched ${hours} hour${hours !== 1 ? 's' : ''} and ${minutes} minute${minutes !== 1 ? 's' : ''} today!`,
+        "Your real life is missing you...",
+        "Time to touch some grass? 🌱",
+        "Netflix and chill? More like Netflix and STILL watching? 😅",
+        "Your couch called, it needs a break! 🛋️"
+    ];
+    
+    overlay.innerHTML = `
+        <h1>Woah there, binge master!</h1>
+        <p>${messages[0]}</p>
+        <p>${messages[Math.floor(Math.random() * (messages.length - 1)) + 1]}</p>
+        <button id="netflix-limit-close">Just 5 more minutes...</button>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Store the video state before pausing
+    const wasPlaying = currentVideo && !currentVideo.paused;
+    
+    // Pause video if playing
+    if (currentVideo && !currentVideo.paused) {
+        currentVideo.pause();
+    }
+    
+    function resumePlayback() {
+        if (currentVideo && wasPlaying) {
+            currentVideo.play()
+                .then(() => {
+                    if (!isPlaying) {
+                        isPlaying = true;
+                        trySendMessage({ action: 'videoStart' });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error resuming video:', error);
+                    isPlaying = false;
+                });
+        }
+    }
+
+    function handleDismiss() {
+        const overlay = document.querySelector('.netflix-limit-overlay');
+        if (overlay) {
+            overlay.remove();
+            resumePlayback();
+            // Send message to extend watchtime by 5 minutes
+            chrome.runtime.sendMessage({ action: 'extendWatchtime', minutes: 5 });
+        }
+        document.removeEventListener('keydown', handleEscape);
+    }
+    
+    // Handle close button with a proper event listener
+    const closeButton = document.getElementById('netflix-limit-close');
+    if (closeButton) {
+        closeButton.addEventListener('click', handleDismiss, { once: true });
+    }
+
+    // Add escape key handler
+    const handleEscape = (event) => {
+        if (event.key === 'Escape') {
+            handleDismiss();
+        }
+    };
+    
+    // Add the escape key listener
+    document.addEventListener('keydown', handleEscape);
+}
+
 function initializeIfWatchPage() {
     const isWatchPage = document.location.href.includes('/watch/');
     
@@ -166,6 +253,14 @@ const urlObserver = new MutationObserver(() => {
 urlObserver.observe(document.querySelector('html'), {
     subtree: true,
     childList: true
+});
+
+// Add message listener for threshold reached
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'showThresholdOverlay') {
+        console.log('Received showThresholdOverlay message:', request);
+        createOverlay(request.watchtime);
+    }
 });
 
 // Initial setup

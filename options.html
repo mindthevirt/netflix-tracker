@@ -35,6 +35,14 @@
         <button id="exportButton">Export CSV</button>
       </label>
     </div>
+    <!-- Add this inside the container div in options.html, before the closing div -->
+    <div class="setting">
+      <label>
+        Daily Watchtime Limit (minutes):
+        <input type="number" id="dailyLimit" min="0" step="15">
+      </label>
+      <p class="setting-description">Set to 0 to disable the limit</p>
+    </div>
   </div>
 
   <script src="options.js"></script>

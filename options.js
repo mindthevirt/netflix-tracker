@@ -50,3 +50,17 @@ exportButton.addEventListener('click', () => {
     link.click();
   });
 });
+
+// Add this to the existing options.js
+const dailyLimit = document.getElementById('dailyLimit');
+
+// Load daily limit setting
+chrome.storage.sync.get(['dailyLimit'], (result) => {
+  dailyLimit.value = result.dailyLimit || 0;
+});
+
+// Save daily limit when changed
+dailyLimit.addEventListener('change', () => {
+  const limit = parseInt(dailyLimit.value, 10);
+  chrome.storage.sync.set({ dailyLimit: limit });
+});

@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # SQLite database setup
-DATABASE = 'watchtime.db'
+DATABASE = '/netflix-tracker-db/watchtime.db'
 
 def init_db():
     with sqlite3.connect(DATABASE) as conn:

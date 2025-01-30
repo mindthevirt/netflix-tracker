@@ -1,0 +1,59 @@
+.netflix-limit-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(20, 20, 20, 0.95);
+    z-index: 9999999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+.netflix-limit-overlay h1 {
+    font-size: 2.5rem;
+    color: #e50914;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.netflix-limit-overlay p {
+    font-size: 1.5rem;
+    margin: 1rem 0;
+    text-align: center;
+    max-width: 80%;
+    line-height: 1.4;
+}
+
+.netflix-limit-overlay .time-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    max-width: 80%;
+}
+
+.netflix-limit-overlay button {
+    background-color: #e50914;
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    min-width: 200px;
+}
+
+.netflix-limit-overlay button:hover {
+    background-color: #b2070f;
+}
+
+.netflix-limit-overlay button:active {
+    transform: scale(0.98);
+}
