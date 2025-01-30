@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Netflix Tracker",
+  "name": "Binge Guard",
   "version": "1.0",
   "description": "Track your Netflix watchtime",
   "icons": {
