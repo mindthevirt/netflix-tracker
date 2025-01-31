@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to fetch watchtime data from Flask app
     async function fetchWatchtimeData() {
-      const url = `http://188.245.162.217:2523/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`;
+      const url = `https://binge-master.mindthevirt.com/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`;
       console.log('Fetching watchtime data from:', url); // Debugging
 
       try {
