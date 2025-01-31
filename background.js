@@ -9,7 +9,7 @@ let watchTimeExtension = 0;
 
 const RETRY_DELAY = 5000;
 const ALARM_NAME = 'updateWatchtimeAlarm';
-const API_BASE_URL = 'https://binge-master.mindthevirt.com/get-watchtime';
+const API_BASE_URL = 'https://binge-master.mindthevirt.com';
 
 // Utility functions
 function debugLog(action, message, data = {}) {
