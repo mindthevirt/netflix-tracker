@@ -29,6 +29,8 @@ function handleVideoPlay() {
     if (!document.location.href.includes('/watch/')) return;
 
     const currentTime = Date.now();
+    console.log('Video play event detected', { currentTime, lastPlayPauseTime, diff: currentTime - lastPlayPauseTime });
+    
     // Ignore play events that happen too quickly after a pause
     if (currentTime - lastPlayPauseTime < DEBOUNCE_THRESHOLD) {
         console.log('Ignoring play event - too close to previous event');
@@ -37,6 +39,7 @@ function handleVideoPlay() {
     
     lastPlayPauseTime = currentTime;
     if (!isPlaying) {
+        console.log('Starting video tracking');
         isPlaying = true;
         trySendMessage({ action: 'videoStart' });
     }
@@ -46,6 +49,8 @@ function handleVideoPause() {
     if (!document.location.href.includes('/watch/')) return;
 
     const currentTime = Date.now();
+    console.log('Video pause event detected', { currentTime, lastPlayPauseTime, diff: currentTime - lastPlayPauseTime });
+    
     // Ignore pause events that happen too quickly after a play
     if (currentTime - lastPlayPauseTime < DEBOUNCE_THRESHOLD) {
         console.log('Ignoring pause event - too close to previous event');
@@ -56,6 +61,7 @@ function handleVideoPause() {
     // Only send stop if video is actually paused
     if (currentVideo && !currentVideo.ended && 
         document.visibilityState === 'visible' && isPlaying) {
+        console.log('Stopping video tracking');
         isPlaying = false;
         trySendMessage({ action: 'videoStop' });
     }
@@ -144,9 +150,9 @@ function createOverlay(watchtime) {
     const messages = [
         `You've watched ${hours} hour${hours !== 1 ? 's' : ''} and ${minutes} minute${minutes !== 1 ? 's' : ''} today!`,
         "Your real life is missing you...",
-        "Time to touch some grass? 🌱",
-        "Netflix and chill? More like Netflix and STILL watching? 😅",
-        "Your couch called, it needs a break! 🛋️"
+        "Time to touch some grass? ",
+        "Netflix and chill? More like Netflix and STILL watching? ",
+        "Your couch called, it needs a break! "
     ];
     
     overlay.innerHTML = `

@@ -201,53 +201,47 @@ async function keepAlive() {
 }
 
 // Session management
-function updateActiveSessions() {
-    const currentTime = Date.now();
-    debugLog('Update', 'Running periodic update check', {
-        activeSessions: activeWatching.size
-    });
+async function updateActiveSessions() {
+    debugLog('Sessions', 'Updating active sessions', { activeCount: activeWatching.size });
     
-    for (const [tabId, isWatching] of activeWatching.entries()) {
-        if (isWatching) {
-            const sessionInfo = sessionTimes.get(tabId);
-            if (sessionInfo) {
-                const duration = currentTime - sessionInfo.lastUpdateTime;
-                
-                debugLog('Update', `Updating session for tab ${tabId}`, {
-                    duration: duration,
-                    lastUpdate: new Date(sessionInfo.lastUpdateTime).toISOString()
-                });
+    for (const [tabId, isActive] of activeWatching.entries()) {
+        if (!isActive) continue;
 
-                if (duration > 0) {
-                    updateWatchtime(duration);
-                    sessionInfo.lastUpdateTime = currentTime;
-                    sessionTimes.set(tabId, sessionInfo);
-                }
+        const sessionInfo = sessionTimes.get(tabId);
+        if (!sessionInfo) {
+            debugLog('Sessions', `No session info for tab ${tabId}, skipping`);
+            continue;
+        }
+
+        try {
+            const tab = await chrome.tabs.get(tabId);
+            if (!tab.url?.includes('netflix.com/watch/')) {
+                debugLog('Sessions', `Tab ${tabId} no longer on Netflix watch page, stopping tracking`);
+                stopTrackingForTab(tabId);
+                continue;
             }
-        }
-    }
 
-    // Keep alive if still tracking
-    if (activeWatching.size > 0) {
-        keepAlive();
-    }
-}
+            const currentTime = Date.now();
+            const duration = currentTime - sessionInfo.lastUpdateTime;
+            
+            debugLog('Sessions', `Updating session for tab ${tabId}`, {
+                sessionStart: new Date(sessionInfo.startTime).toISOString(),
+                lastUpdate: new Date(sessionInfo.lastUpdateTime).toISOString(),
+                duration: duration
+            });
 
-// Initialization
-async function initializeUniqueIdentifier() {
-    try {
-        const result = await chrome.storage.local.get(['uniqueIdentifier']);
-        if (!result.uniqueIdentifier) {
-            uniqueIdentifier = crypto.randomUUID?.() || generateFallbackUUID();
-            await chrome.storage.local.set({ uniqueIdentifier });
-        } else {
-            uniqueIdentifier = result.uniqueIdentifier;
+            if (duration > 0) {
+                await updateWatchtime(duration);
+                sessionTimes.set(tabId, {
+                    ...sessionInfo,
+                    lastUpdateTime: currentTime
+                });
+            }
+        } catch (error) {
+            debugLog('Sessions', `Error updating session for tab ${tabId}`, { error });
+            // Tab might have been closed
+            stopTrackingForTab(tabId);
         }
-        debugLog('Init', 'Unique identifier ready', { uniqueIdentifier });
-        await processPendingUpdates();
-    } catch (error) {
-        console.error('Error initializing unique identifier:', error);
-        setTimeout(initializeUniqueIdentifier, RETRY_DELAY);
     }
 }
 
@@ -332,4 +326,28 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 // Start initialization
+async function initializeUniqueIdentifier() {
+    debugLog('Initialization', 'Starting uniqueIdentifier initialization');
+    try {
+        const result = await chrome.storage.local.get(['uniqueIdentifier']);
+        
+        if (result.uniqueIdentifier) {
+            uniqueIdentifier = result.uniqueIdentifier;
+            debugLog('Initialization', 'Retrieved existing uniqueIdentifier', { uniqueIdentifier });
+            // Process any pending updates that accumulated while waiting for uniqueIdentifier
+            if (pendingUpdates.length > 0) {
+                debugLog('Initialization', 'Processing pending updates', { count: pendingUpdates.length });
+                await processPendingUpdates();
+            }
+        } else {
+            uniqueIdentifier = crypto.randomUUID?.() || generateFallbackUUID();
+            debugLog('Initialization', 'Generated new uniqueIdentifier', { uniqueIdentifier });
+            await chrome.storage.local.set({ uniqueIdentifier });
+        }
+    } catch (error) {
+        console.error('Error initializing unique identifier:', error);
+        setTimeout(initializeUniqueIdentifier, RETRY_DELAY);
+    }
+}
+
 initializeUniqueIdentifier();
