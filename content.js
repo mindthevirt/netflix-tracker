@@ -4,21 +4,35 @@ let isPlaying = false;
 let lastPlayPauseTime = 0;
 const DEBOUNCE_THRESHOLD = 100; // ms to ignore rapid play/pause events
 
+function debugLog(context, message, data = {}) {
+    console.log(`[Debug] [${context}]`, message, {
+        timestamp: new Date().toISOString(),
+        url: document.location.href,
+        ...data
+    });
+}
+
 // Safer message sending that doesn't throw on invalid context
 function trySendMessage(message) {
     if (document.location.href.includes('/watch/')) {
+        debugLog('Message', 'Attempting to send message', { message });
         try {
             const sendPromise = chrome.runtime?.sendMessage(message);
             if (sendPromise && typeof sendPromise.catch === 'function') {
-                sendPromise.catch(() => {});
+                sendPromise
+                    .then(() => debugLog('Message', 'Message sent successfully', { message }))
+                    .catch((error) => debugLog('Message', 'Failed to send message', { error, message }));
             }
-        } catch {
-            // Ignore any errors
+        } catch (error) {
+            debugLog('Message', 'Error sending message', { error, message });
         }
+    } else {
+        debugLog('Message', 'Not sending message - not on watch page');
     }
 }
 
 function handleVideoEnd() {
+    debugLog('Video', 'Video ended event triggered');
     if (document.location.href.includes('/watch/')) {
         isPlaying = false;
         trySendMessage({ action: 'videoStop' });
@@ -26,34 +40,50 @@ function handleVideoEnd() {
 }
 
 function handleVideoPlay() {
-    if (!document.location.href.includes('/watch/')) return;
+    if (!document.location.href.includes('/watch/')) {
+        debugLog('Video', 'Play event ignored - not on watch page');
+        return;
+    }
 
     const currentTime = Date.now();
-    console.log('Video play event detected', { currentTime, lastPlayPauseTime, diff: currentTime - lastPlayPauseTime });
+    debugLog('Video', 'Play event detected', {
+        currentTime,
+        lastPlayPauseTime,
+        timeSinceLastEvent: currentTime - lastPlayPauseTime
+    });
     
     // Ignore play events that happen too quickly after a pause
     if (currentTime - lastPlayPauseTime < DEBOUNCE_THRESHOLD) {
-        console.log('Ignoring play event - too close to previous event');
+        debugLog('Video', 'Ignoring play event - too close to previous event');
         return;
     }
     
     lastPlayPauseTime = currentTime;
     if (!isPlaying) {
-        console.log('Starting video tracking');
+        debugLog('Video', 'Starting video tracking');
         isPlaying = true;
         trySendMessage({ action: 'videoStart' });
+    } else {
+        debugLog('Video', 'Video already being tracked');
     }
 }
 
 function handleVideoPause() {
-    if (!document.location.href.includes('/watch/')) return;
+    if (!document.location.href.includes('/watch/')) {
+        debugLog('Video', 'Pause event ignored - not on watch page');
+        return;
+    }
 
     const currentTime = Date.now();
-    console.log('Video pause event detected', { currentTime, lastPlayPauseTime, diff: currentTime - lastPlayPauseTime });
+    debugLog('Video', 'Pause event detected', {
+        currentTime,
+        lastPlayPauseTime,
+        timeSinceLastEvent: currentTime - lastPlayPauseTime
+    });
     
     // Ignore pause events that happen too quickly after a play
     if (currentTime - lastPlayPauseTime < DEBOUNCE_THRESHOLD) {
-        console.log('Ignoring pause event - too close to previous event');
+        debugLog('Video', 'Ignoring pause event - too close to previous event');
         return;
     }
 
@@ -61,28 +91,39 @@ function handleVideoPause() {
     // Only send stop if video is actually paused
     if (currentVideo && !currentVideo.ended && 
         document.visibilityState === 'visible' && isPlaying) {
-        console.log('Stopping video tracking');
+        debugLog('Video', 'Stopping video tracking');
         isPlaying = false;
         trySendMessage({ action: 'videoStop' });
     }
 }
 
 function handleVisibilityChange() {
-    // Ignore visibility changes - don't update play state
-    console.log('Visibility changed - ignoring');
+    debugLog('Visibility', 'Page visibility changed', {
+        visibilityState: document.visibilityState,
+        isPlaying,
+        hasVideo: !!currentVideo
+    });
 }
 
 function handleSeeking() {
-    // Don't stop tracking on seeking
-    console.log('Seeking - maintaining current state');
+    debugLog('Video', 'Seeking event detected', {
+        currentTime: currentVideo?.currentTime
+    });
 }
 
 function handleSeeked() {
-    // Don't change tracking state on seek completion
-    console.log('Seeked - maintaining current state');
+    debugLog('Video', 'Seeked event completed', {
+        currentTime: currentVideo?.currentTime
+    });
 }
 
 function cleanup() {
+    debugLog('Cleanup', 'Performing cleanup', {
+        hadVideo: !!currentVideo,
+        hadObserver: !!observer,
+        wasPlaying: isPlaying
+    });
+
     if (currentVideo) {
         removeVideoListeners(currentVideo);
         currentVideo = null;
@@ -95,17 +136,29 @@ function cleanup() {
 }
 
 function setupVideoListeners(video) {
+    debugLog('Setup', 'Setting up video listeners', {
+        currentVideo: currentVideo === video ? 'Same video' : 'New video',
+        videoState: video ? {
+            paused: video.paused,
+            ended: video.ended,
+            currentTime: video.currentTime,
+            duration: video.duration
+        } : 'No video'
+    });
+
     if (currentVideo === video) {
+        debugLog('Setup', 'Video already being tracked');
         return;
     }
 
     if (currentVideo) {
+        debugLog('Setup', 'Removing listeners from old video');
         removeVideoListeners(currentVideo);
     }
 
     currentVideo = video;
     
-    // Set up the video state listeners
+    // Set up all video state listeners
     video.addEventListener('play', handleVideoPlay);
     video.addEventListener('pause', handleVideoPause);
     video.addEventListener('ended', handleVideoEnd);
@@ -114,6 +167,10 @@ function setupVideoListeners(video) {
     
     // Set initial state if video is already playing
     if (!video.paused) {
+        debugLog('Setup', 'Video already playing on setup', {
+            currentTime: video.currentTime,
+            duration: video.duration
+        });
         isPlaying = true;
         trySendMessage({ action: 'videoStart' });
     }
@@ -122,6 +179,7 @@ function setupVideoListeners(video) {
 function removeVideoListeners(video) {
     if (!video) return;
     
+    debugLog('Cleanup', 'Removing video listeners');
     video.removeEventListener('play', handleVideoPlay);
     video.removeEventListener('pause', handleVideoPause);
     video.removeEventListener('ended', handleVideoEnd);
@@ -130,7 +188,7 @@ function removeVideoListeners(video) {
 }
 
 function createOverlay(watchtime) {
-    console.log('Creating overlay with watchtime:', watchtime);
+    debugLog('Overlay', 'Creating overlay', { watchtime });
     
     // Remove any existing overlay first
     const existingOverlay = document.querySelector('.netflix-limit-overlay');
@@ -141,8 +199,6 @@ function createOverlay(watchtime) {
     // watchtime comes in as minutes already
     const hours = Math.floor(watchtime / 60);
     const minutes = Math.round(watchtime % 60);
-    
-    console.log('Calculated time:', { hours, minutes });
     
     const overlay = document.createElement('div');
     overlay.className = 'netflix-limit-overlay';
@@ -194,14 +250,17 @@ function createOverlay(watchtime) {
     
     // Store the video state before pausing
     const wasPlaying = currentVideo && !currentVideo.paused;
+    debugLog('Overlay', 'Storing video state', { wasPlaying });
     
     // Pause video if playing
     if (currentVideo && !currentVideo.paused) {
+        debugLog('Overlay', 'Pausing video');
         currentVideo.pause();
     }
     
     function resumePlayback() {
         if (currentVideo && wasPlaying) {
+            debugLog('Overlay', 'Resuming video playback');
             currentVideo.play()
                 .then(() => {
                     if (!isPlaying) {
@@ -210,13 +269,14 @@ function createOverlay(watchtime) {
                     }
                 })
                 .catch(error => {
-                    console.error('Error resuming video:', error);
+                    debugLog('Overlay', 'Error resuming video', { error });
                     isPlaying = false;
                 });
         }
     }
 
     function handleDismiss(minutes) {
+        debugLog('Overlay', 'Handling overlay dismiss', { minutes });
         const overlay = document.querySelector('.netflix-limit-overlay');
         if (overlay) {
             overlay.remove();
@@ -232,6 +292,7 @@ function createOverlay(watchtime) {
         const button = event.target.closest('.netflix-limit-extend');
         if (button) {
             const minutes = parseInt(button.dataset.minutes, 10);
+            debugLog('Overlay', 'Extension button clicked', { minutes });
             handleDismiss(minutes);
         }
     });
@@ -239,6 +300,7 @@ function createOverlay(watchtime) {
     // Add escape key handler (default to 5 minutes when using escape)
     const handleEscape = (event) => {
         if (event.key === 'Escape') {
+            debugLog('Overlay', 'Escape key pressed, extending by 5 minutes');
             handleDismiss(5);
         }
     };
@@ -249,16 +311,20 @@ function createOverlay(watchtime) {
 
 function initializeIfWatchPage() {
     const isWatchPage = document.location.href.includes('/watch/');
+    debugLog('Init', 'Initializing watch page detection', { isWatchPage });
     
     if (!isWatchPage) {
+        debugLog('Init', 'Not a watch page, cleaning up');
         cleanup();
         return;
     }
 
     if (!observer) {
+        debugLog('Init', 'Setting up new mutation observer');
         observer = new MutationObserver(() => {
             if (document.location.href.includes('/watch/')) {
                 const videos = document.getElementsByTagName('video');
+                debugLog('Observer', 'DOM mutation detected', { videosFound: videos.length });
                 if (videos.length > 0) {
                     setupVideoListeners(videos[0]);
                 }
@@ -271,6 +337,7 @@ function initializeIfWatchPage() {
         });
 
         const videos = document.getElementsByTagName('video');
+        debugLog('Init', 'Checking for existing videos', { videosFound: videos.length });
         if (videos.length > 0) {
             setupVideoListeners(videos[0]);
         }
@@ -278,10 +345,15 @@ function initializeIfWatchPage() {
 }
 
 let lastUrl = document.location.href;
+debugLog('Init', 'Initial page load', { url: lastUrl });
 
 // Create a new observer for URL changes
 const urlObserver = new MutationObserver(() => {
     if (document.location.href !== lastUrl) {
+        debugLog('Navigation', 'URL changed', {
+            from: lastUrl,
+            to: document.location.href
+        });
         lastUrl = document.location.href;
         initializeIfWatchPage();
     }
@@ -294,8 +366,8 @@ urlObserver.observe(document.querySelector('html'), {
 
 // Add message listener for threshold reached
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    debugLog('Message', 'Received message', { request });
     if (request.action === 'showThresholdOverlay') {
-        console.log('Received showThresholdOverlay message:', request);
         createOverlay(request.watchtime);
     }
 });
@@ -308,6 +380,7 @@ document.addEventListener('visibilitychange', handleVisibilityChange);
 
 // Cleanup on unload
 window.addEventListener('unload', () => {
+    debugLog('Unload', 'Page unloading', { wasPlaying: isPlaying });
     if (isPlaying) {
         trySendMessage({ action: 'videoStop' });
     }

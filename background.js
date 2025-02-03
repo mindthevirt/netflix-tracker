@@ -33,7 +33,12 @@ async function sendDataToFlask(watchtime) {
         uniqueIdentifier
     };
 
-    debugLog('API', 'Sending data to Flask', data);
+    debugLog('API Request', 'Sending watchtime update', {
+        url,
+        method: 'POST',
+        watchtime,
+        uniqueIdentifier
+    });
 
     try {
         const response = await fetch(url, {
@@ -45,22 +50,37 @@ async function sendDataToFlask(watchtime) {
         });
         
         if (!response.ok) {
+            debugLog('API Error', `Failed with status ${response.status}`, {
+                status: response.status,
+                statusText: response.statusText,
+                url
+            });
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const result = await response.json();
-        debugLog('API', 'Watch time updated successfully', result);
+        debugLog('API Success', 'Watch time updated successfully', {
+            response: result,
+            sentData: data
+        });
     } catch (error) {
         console.error('Error sending data to Flask app:', error);
-        debugLog('API', 'Error sending data, will retry', { error: error.message });
+        debugLog('API Error', 'Error sending data, scheduling retry', {
+            error: error.message,
+            retryDelay: RETRY_DELAY,
+            watchtime
+        });
         setTimeout(() => sendDataToFlask(watchtime), RETRY_DELAY);
     }
 }
 
 // Get daily watchtime from API
 async function getDailyWatchtime() {
+    const url = `${API_BASE_URL}/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`;
+    debugLog('API Request', 'Fetching daily watchtime', { url });
+
     try {
-        const response = await fetch(`${API_BASE_URL}/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`);
+        const response = await fetch(url);
         const data = await response.json();
         
         if (data.status === 'success') {
@@ -72,11 +92,24 @@ async function getDailyWatchtime() {
                 .filter(entry => new Date(entry.timestamp) >= todayStart)
                 .reduce((total, entry) => total + entry.watchtime, 0);
             
-            debugLog('API', 'Retrieved daily watchtime', { todayWatchtime });
+            debugLog('API Success', 'Retrieved daily watchtime', {
+                todayWatchtime,
+                entriesCount: data.data.length,
+                todayStart: todayStart.toISOString()
+            });
             return todayWatchtime;
+        } else {
+            debugLog('API Warning', 'Unexpected response status', {
+                status: data.status,
+                data
+            });
         }
     } catch (error) {
         console.error('Error fetching daily watchtime:', error);
+        debugLog('API Error', 'Failed to fetch daily watchtime', {
+            error: error.message,
+            url
+        });
     }
     return 0;
 }

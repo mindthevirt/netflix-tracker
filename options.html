@@ -18,11 +18,39 @@
       </div>
       
       <div class="settings-list">
+        <!-- Tracking Toggle -->
+        <div class="setting-card">
+          <div class="setting-content">
+            <label>
+              <span>Enable Tracking</span>
+              <div class="toggle-switch">
+                <input type="checkbox" id="trackingEnabled">
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
+            <p class="setting-description">Track your Netflix watching habits</p>
+          </div>
+        </div>
+
+        <!-- Notifications Toggle -->
+        <div class="setting-card">
+          <div class="setting-content">
+            <label>
+              <span>Enable Weekly Notifications</span>
+              <div class="toggle-switch">
+                <input type="checkbox" id="notificationsEnabled">
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
+            <p class="setting-description">Receive weekly watching summaries</p>
+          </div>
+        </div>
+
         <!-- Daily Limit Input -->
         <div class="setting-card">
           <div class="setting-content">
             <label>
-              <h3 class="section-title">Daily Watchtime Limit</h3>
+              <span>Daily Watchtime Limit</span>
               <input type="number" id="dailyLimit" min="0" step="15" placeholder="Minutes">
             </label>
             <p class="setting-description">Set to 0 to disable the limit</p>
