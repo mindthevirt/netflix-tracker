@@ -2,46 +2,46 @@
 <html>
 <head>
   <title>Binge Guard Settings</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="options.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Netflix+Sans:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="options-page">
   <div class="container">
-    <h1>Settings</h1>
-    
-    <div class="setting">
-      <label>
-        <input type="checkbox" id="trackingEnabled">
-        Enable Tracking
-      </label>
-    </div>
+    <div class="settings-group">
+      <div class="header">
+        <h1>Settings</h1>
+      </div>
+      
+      <div class="settings-list">
+        <!-- Daily Limit Input -->
+        <div class="setting-card">
+          <div class="setting-content">
+            <label>
+              <h3 class="section-title">Daily Watchtime Limit</h3>
+              <input type="number" id="dailyLimit" min="0" step="15" placeholder="Minutes">
+            </label>
+            <p class="setting-description">Set to 0 to disable the limit</p>
+          </div>
+        </div>
 
-    <div class="setting">
-      <label>
-        <input type="checkbox" id="notificationsEnabled">
-        Enable Weekly Notifications
-      </label>
-    </div>
-
-    <div class="setting">
-      <label>
-        Reset Watchtime:
-        <button id="resetButton">Reset</button>
-      </label>
-    </div>
-
-    <div class="setting">
-      <label>
-        Export Data:
-        <button id="exportButton">Export CSV</button>
-      </label>
-    </div>
-    <!-- Add this inside the container div in options.html, before the closing div -->
-    <div class="setting">
-      <label>
-        Daily Watchtime Limit (minutes):
-        <input type="number" id="dailyLimit" min="0" step="15">
-      </label>
-      <p class="setting-description">Set to 0 to disable the limit</p>
+        <!-- Data Management -->
+        <div class="setting-card">
+          <h3 class="section-title">Data Management</h3>
+          <div class="button-group">
+            <button id="exportButton" class="btn btn-secondary">
+              Export Data
+            </button>
+            <button id="resetButton" class="btn btn-danger">
+              Reset Data
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -1,0 +1,199 @@
+/* Options page specific styles */
+body.options-page {
+  width: auto;
+  min-width: 500px;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #141414;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.options-page .container {
+  background-color: #1f1f1f;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.options-page h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 28px;
+  color: #e50914;
+  letter-spacing: -0.02em;
+}
+
+.setting {
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.setting:hover {
+  background-color: #333333;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.setting label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #ffffff;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #444;
+  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input:checked + .toggle-slider {
+  background-color: #e50914;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+/* Input styles */
+.input-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.input-wrapper input[type="number"] {
+  background-color: #333333;
+  border: 2px solid #404040;
+  color: white;
+  padding: 8px 12px;
+  padding-right: 45px;
+  border-radius: 6px;
+  width: 80px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  -moz-appearance: textfield;
+}
+
+.input-wrapper input[type="number"]::-webkit-inner-spin-button,
+.input-wrapper input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-wrapper input[type="number"]:focus {
+  border-color: #e50914;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.2);
+}
+
+.input-wrapper .input-suffix {
+  position: absolute;
+  right: 12px;
+  color: #999;
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.setting-description {
+  color: #999;
+  font-size: 13px;
+  margin-top: 6px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btn-secondary, .btn-danger {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary {
+  background-color: #333333;
+  border: 1px solid #404040;
+}
+
+.btn-secondary:hover {
+  background-color: #404040;
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background-color: rgba(229, 9, 20, 0.1);
+  color: #e50914;
+  border: 1px solid rgba(229, 9, 20, 0.2);
+}
+
+.btn-danger:hover {
+  background-color: rgba(229, 9, 20, 0.2);
+  transform: translateY(-1px);
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: #ffffff;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.setting {
+  animation: fadeIn 0.3s ease-out;
+}
