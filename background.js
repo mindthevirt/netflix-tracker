@@ -140,6 +140,14 @@ async function checkAndResetDaily() {
 
 async function updateWatchtime(duration) {
     debugLog('Watchtime', 'Updating watchtime', { duration });
+    
+    // Check if tracking is enabled
+    const { trackingEnabled } = await chrome.storage.sync.get(['trackingEnabled']);
+    if (trackingEnabled === false) {
+        debugLog('Watchtime', 'Tracking is disabled, skipping update');
+        return;
+    }
+    
     if (!uniqueIdentifier) {
         debugLog('Watchtime', 'No identifier, queueing update', { duration });
         pendingUpdates.push(duration);
@@ -343,6 +351,33 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             startTrackingForTab(tabId);
         } else if (request.action === 'videoStop') {
             stopTrackingForTab(tabId);
+        }
+    }
+});
+
+// Listen for changes in storage
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'sync' && changes.trackingEnabled) {
+        debugLog('Settings', 'Tracking setting changed', { 
+            newValue: changes.trackingEnabled.newValue 
+        });
+        
+        if (changes.trackingEnabled.newValue === false) {
+            // Stop tracking all active sessions
+            for (const [tabId] of activeWatching.entries()) {
+                stopTrackingForTab(tabId);
+            }
+            activeWatching.clear();
+            sessionTimes.clear();
+        } else {
+            // Re-check all Netflix tabs to start tracking if needed
+            chrome.tabs.query({ url: "*://*.netflix.com/*" }, (tabs) => {
+                tabs.forEach(tab => {
+                    if (tab.url?.includes('/watch/')) {
+                        startTrackingForTab(tab.id);
+                    }
+                });
+            });
         }
     }
 });

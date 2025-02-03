@@ -1,13 +1,14 @@
 // Get elements
 const trackingEnabled = document.getElementById('trackingEnabled');
-const notificationsEnabled = document.getElementById('notificationsEnabled');
+// const notificationsEnabled = document.getElementById('notificationsEnabled');
 const resetButton = document.getElementById('resetButton');
 const exportButton = document.getElementById('exportButton');
+const dailyLimit = document.getElementById('dailyLimit');
 
 // Load current settings
-chrome.storage.sync.get(['trackingEnabled', 'notificationsEnabled'], (result) => {
+chrome.storage.sync.get(['trackingEnabled'], (result) => {
   trackingEnabled.checked = result.trackingEnabled !== false;
-  notificationsEnabled.checked = result.notificationsEnabled || false;
+  // notificationsEnabled.checked = result.notificationsEnabled || false;
 });
 
 // Save settings when changed
@@ -15,9 +16,12 @@ trackingEnabled.addEventListener('change', () => {
   chrome.storage.sync.set({ trackingEnabled: trackingEnabled.checked });
 });
 
+// Notifications toggle - Currently not implemented
+/*
 notificationsEnabled.addEventListener('change', () => {
   chrome.storage.sync.set({ notificationsEnabled: notificationsEnabled.checked });
 });
+*/
 
 // Reset watchtime
 resetButton.addEventListener('click', () => {
@@ -50,9 +54,6 @@ exportButton.addEventListener('click', () => {
     link.click();
   });
 });
-
-// Add this to the existing options.js
-const dailyLimit = document.getElementById('dailyLimit');
 
 // Load daily limit setting
 chrome.storage.sync.get(['dailyLimit'], (result) => {
