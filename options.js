@@ -24,11 +24,49 @@ notificationsEnabled.addEventListener('change', () => {
 */
 
 // Reset watchtime
-resetButton.addEventListener('click', () => {
-  if (confirm('Are you sure you want to reset your watchtime?')) {
-    chrome.storage.local.set({ watchtime: 0 }, () => {
-      alert('Watchtime has been reset');
-    });
+resetButton.addEventListener('click', async () => {
+  if (confirm('Are you sure you want to reset your data?')) {
+    try {
+      // Get current unique identifier
+      const result = await chrome.storage.local.get(['uniqueIdentifier']);
+      if (!result.uniqueIdentifier) {
+        throw new Error('No unique identifier found');
+      }
+
+      let currentId = result.uniqueIdentifier;
+      let newId;
+
+      // Check if the ID already has our custom number suffix
+      const match = currentId.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-(\d+)$/);
+      if (match) {
+        // If it has a number, increment it
+        const baseUUID = match[1];
+        const currentNum = parseInt(match[2]);
+        newId = `${baseUUID}-${currentNum + 1}`;
+      } else {
+        // If it doesn't have a number and is a valid UUID, add -1
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(currentId)) {
+          newId = `${currentId}-1`;
+        } else {
+          throw new Error('Invalid identifier format');
+        }
+      }
+
+      // Save the new identifier and reset watchtime
+      await chrome.storage.local.set({ 
+        uniqueIdentifier: newId,
+        watchtime: 0  // Reset watchtime as well
+      });
+
+      // Find and reload all Netflix tabs
+      const tabs = await chrome.tabs.query({ url: '*://*.netflix.com/*' });
+      for (const tab of tabs) {
+        await chrome.tabs.reload(tab.id);
+      }
+    } catch (error) {
+      console.error('Error resetting data:', error);
+      alert('Failed to reset data: ' + error.message);
+    }
   }
 });
 

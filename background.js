@@ -382,6 +382,14 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 });
 
+// Listen for changes to the uniqueIdentifier in storage
+chrome.storage.local.onChanged.addListener((changes) => {
+    if (changes.uniqueIdentifier) {
+        uniqueIdentifier = changes.uniqueIdentifier.newValue;
+        debugLog('Storage', 'Updated uniqueIdentifier from storage change', { uniqueIdentifier });
+    }
+});
+
 // Initialize alarms
 chrome.alarms.create(ALARM_NAME, {
     periodInMinutes: 0.5 // Run every 30 seconds
