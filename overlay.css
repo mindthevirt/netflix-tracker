@@ -12,20 +12,30 @@
     align-items: center;
     color: white;
     font-family: Arial, sans-serif;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+.netflix-limit-overlay h1,
+.netflix-limit-overlay p,
+.netflix-limit-overlay .alternative-activities,
+.netflix-limit-overlay .funny-extra {
+    width: 100%;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
 }
 
 .netflix-limit-overlay h1 {
-    font-size: 2.5rem;
+    font-size: 3rem;
     color: #e50914;
     margin-bottom: 1rem;
-    text-align: center;
 }
 
 .netflix-limit-overlay p {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     margin: 1rem 0;
-    text-align: center;
-    max-width: 80%;
     line-height: 1.4;
 }
 
@@ -38,12 +48,27 @@
     max-width: 80%;
 }
 
+.netflix-limit-overlay .alternative-activities {
+    margin: 2rem 0;
+}
+
+.netflix-limit-overlay .activity-item {
+    font-size: 2rem;
+    margin: 1.5rem 0;
+    color: #fff;
+}
+
+.netflix-limit-overlay .activity-item:hover {
+    transform: scale(1.02);
+    transition: transform 0.2s ease;
+}
+
 .netflix-limit-overlay button {
     background-color: #e50914;
     color: white;
     border: none;
     padding: 1rem 2rem;
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.1s ease;

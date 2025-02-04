@@ -173,6 +173,11 @@ function setupVideoListeners(video) {
         });
         isPlaying = true;
         trySendMessage({ action: 'videoStart' });
+    } else {
+        debugLog('Setup', 'Video already paused on setup', {
+            currentTime: video.currentTime,
+            duration: video.duration
+        });
     }
 }
 
@@ -205,16 +210,35 @@ function createOverlay(watchtime) {
     
     const messages = [
         `You've watched ${hours} hour${hours !== 1 ? 's' : ''} and ${minutes} minute${minutes !== 1 ? 's' : ''} today!`,
-        "Your real life is missing you...",
-        "Time to touch some grass? ",
-        "Netflix and chill? More like Netflix and STILL watching? ",
-        "Your couch called, it needs a break! "
+        "Instead of binge-watching, you could have:",
     ];
-    
+
+    const timeBasedActivities = [
+        { minMinutes: 15, activity: "mastered the art of making the perfect sandwich", emoji: "🥪" },
+        { minMinutes: 20, activity: "taught your pet a new trick (or tried to)", emoji: "🐾" },
+        { minMinutes: 30, activity: "become a master of origami (well, at least made a paper crane)", emoji: "🦢" },
+        { minMinutes: 45, activity: "written half of your future bestselling novel", emoji: "📚" },
+        { minMinutes: 60, activity: "become TikTok famous with your dance moves", emoji: "💃" },
+        { minMinutes: 90, activity: "baked a cake and eaten it too", emoji: "🎂" },
+        { minMinutes: 120, activity: "learned to juggle (and only dropped things 50 times)", emoji: "🤹" },
+        { minMinutes: 240, activity: "become a master of dad jokes (your friends will love it... maybe)", emoji: "🎭" }
+    ];
+
+    // Get relevant activities based on watch time
+    const totalMinutes = hours * 60 + minutes;
+    const relevantActivities = timeBasedActivities
+        .filter(item => item.minMinutes <= totalMinutes)
+        .slice(-1); // Get only the last (highest) activity that fits in the time
+
     overlay.innerHTML = `
         <h1>Woah there, binge master!</h1>
         <p>${messages[0]}</p>
-        <p>${messages[Math.floor(Math.random() * (messages.length - 1)) + 1]}</p>
+        <p>${messages[1]}</p>
+        <div class="alternative-activities">
+            ${relevantActivities.map(item => 
+                `<p class="activity-item">${item.emoji} ${item.activity}</p>`
+            ).join('')}
+        </div>
         <div class="netflix-limit-buttons">
             <button class="netflix-limit-extend" data-minutes="5">Just 5 more minutes...</button>
             <button class="netflix-limit-extend" data-minutes="15">Give me 15 minutes</button>
@@ -244,6 +268,32 @@ function createOverlay(watchtime) {
         }
         .netflix-limit-extend:hover {
             background: rgba(229, 9, 20, 1);
+        }
+        .alternative-activities {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .activity-item {
+            margin: 12px 0;
+            color: #fff;
+            font-size: 1.4em;
+            line-height: 1.4;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            transition: transform 0.2s ease;
+        }
+        .activity-item:hover {
+            transform: scale(1.02);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .funny-extra {
+            font-style: italic;
+            margin: 20px 0;
+            color: #ffd700;
+            font-size: 1.2em;
         }
     `;
     document.head.appendChild(style);
