@@ -16,7 +16,7 @@
   ],
   "host_permissions": [
     "*://*.netflix.com/*",
-    "http://188.245.162.217:2523/*"
+    "https://binge-master.mindthevirt.com/*"
   ],
   "background": {
     "service_worker": "background.js",
