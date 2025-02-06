@@ -16,7 +16,9 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 uniqueIdentifier TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
-                watchtime INTEGER NOT NULL
+                watchtime INTEGER NOT NULL,
+                trackingEnabled BOOLEAN NOT NULL,
+                dailyLimit INTEGER NOT NULL
             )
         ''')
         conn.commit()
@@ -30,14 +32,16 @@ def update_watchtime():
     print(data)
     watchtime = data.get('watchtime')  # Watchtime in milliseconds
     uniqueIdentifier = data.get('uniqueIdentifier')  # Unique identifier
+    trackingEnabled = data.get('trackingEnabled', True)  # Default to True if not provided
+    dailyLimit = data.get('dailyLimit', 0)  # Default to 0 if not provided
     timestamp = datetime.now().isoformat()  # Current timestamp
 
     # Save to SQLite database
     with sqlite3.connect(DATABASE) as conn:
         conn.execute('''
-            INSERT INTO watchtime (uniqueIdentifier, timestamp, watchtime)
-            VALUES (?, ?, ?)
-        ''', (uniqueIdentifier, timestamp, watchtime))
+            INSERT INTO watchtime (uniqueIdentifier, timestamp, watchtime, trackingEnabled, dailyLimit)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (uniqueIdentifier, timestamp, watchtime, trackingEnabled, dailyLimit))
         conn.commit()
 
     # Log the received data

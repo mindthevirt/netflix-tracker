@@ -28,16 +28,21 @@ function generateFallbackUUID() {
 // API communication
 async function sendDataToFlask(watchtime) {
     const url = `${API_BASE_URL}/update`;
+    
+    // Get current settings
+    const settings = await chrome.storage.sync.get(['trackingEnabled', 'dailyLimit']);
+    
     const data = {
         watchtime,
-        uniqueIdentifier
+        uniqueIdentifier,
+        trackingEnabled: settings.trackingEnabled !== false, // default to true if not set
+        dailyLimit: settings.dailyLimit || 0 // default to 0 if not set
     };
 
     debugLog('API Request', 'Sending watchtime update', {
         url,
         method: 'POST',
-        watchtime,
-        uniqueIdentifier
+        ...data
     });
 
     try {
