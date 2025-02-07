@@ -89,20 +89,15 @@ async function makeAuthenticatedRequest(endpoint, options = {}) {
 // Get daily watchtime from API
 async function getDailyWatchtime() {
     try {
-        const result = await makeAuthenticatedRequest('/get-watchtime');
+        const result = await makeAuthenticatedRequest(`/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`);
         if (result.status === 'success') {
-            // Calculate total watchtime for today only
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
-            
-            const todayWatchtime = result.data
-                .filter(entry => new Date(entry.timestamp) >= todayStart)
-                .reduce((total, entry) => total + entry.watchtime, 0);
+            // Calculate total watchtime by summing up entries
+            const todayWatchtime = result.data.reduce((total, entry) => total + entry.watchtime, 0);
             
             debugLog('API Success', 'Retrieved daily watchtime', {
                 todayWatchtime,
-                entriesCount: result.data.length,
-                todayStart: todayStart.toISOString()
+                todayWatchtimeMinutes: Math.floor(todayWatchtime / 60000),
+                entriesCount: result.data.length
             });
             return todayWatchtime;
         } else {
@@ -146,7 +141,10 @@ async function checkAndResetDaily() {
 }
 
 async function updateWatchtime(duration) {
-    debugLog('Watchtime', 'Updating watchtime', { duration });
+    debugLog('Watchtime', 'Updating watchtime', { 
+        duration,
+        durationMinutes: Math.floor(duration / 60000)
+    });
     
     // Check if tracking is enabled
     const { trackingEnabled } = await chrome.storage.sync.get(['trackingEnabled']);
@@ -162,11 +160,11 @@ async function updateWatchtime(duration) {
     }
 
     try {
-        // Check and reset daily watchtime if needed
-        await checkAndResetDaily();
-        
         // Send to API first
         await sendDataToFlask(duration);
+        
+        // Get updated total from API
+        const totalWatchtime = await getDailyWatchtime();
         
         // Check if we should show the overlay
         const result = await chrome.storage.sync.get(['dailyLimit']);
@@ -174,8 +172,13 @@ async function updateWatchtime(duration) {
         
         if (limit > 0) {
             // Convert milliseconds to minutes for comparison
-            const minutesWatched = Math.floor(dailyWatchtime / 60000);
-            debugLog('Limit Check', 'Checking watchtime against limit', { minutesWatched, limit });
+            const minutesWatched = Math.floor(totalWatchtime / 60000);
+            debugLog('Limit Check', 'Checking watchtime against limit', { 
+                minutesWatched, 
+                totalWatchtime,
+                totalWatchtimeMinutes: minutesWatched,
+                limit 
+            });
             
             if (minutesWatched >= limit && watchTimeExtension <= 0) {
                 const tabs = await chrome.tabs.query({
@@ -185,7 +188,11 @@ async function updateWatchtime(duration) {
                 for (const tab of tabs) {
                     if (tab.url.includes('/watch/')) {
                         try {
-                            debugLog('Overlay', 'Showing overlay', { tabId: tab.id, minutesWatched });
+                            debugLog('Overlay', 'Showing overlay', { 
+                                tabId: tab.id, 
+                                minutesWatched,
+                                totalWatchtime
+                            });
                             await chrome.tabs.sendMessage(tab.id, {
                                 action: 'showThresholdOverlay',
                                 watchtime: minutesWatched

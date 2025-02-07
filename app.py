@@ -117,20 +117,31 @@ def get_watchtime():
         return '', 204
         
     uniqueIdentifier = request.args.get('uniqueIdentifier')  # Get unique identifier from query params
-    # Fetch watchtime data for the specified user
+    
+    # Get today's date in ISO format for comparison
+    today = datetime.now().date().isoformat()
+    
+    # Fetch watchtime data for the specified user for today
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT timestamp, watchtime FROM watchtime
+            SELECT timestamp, watchtime 
+            FROM watchtime
             WHERE uniqueIdentifier = ?
+              AND date(timestamp) = ?
             ORDER BY timestamp
-        ''', (uniqueIdentifier,))
+        ''', (uniqueIdentifier, today))
         rows = cursor.fetchall()
 
-    # Format the data
+    # Calculate total watchtime for today and include individual entries
+    total_watchtime = sum(row[1] for row in rows)  # Sum all watchtime entries
     watchtime_data = [{"timestamp": row[0], "watchtime": row[1]} for row in rows]
 
-    return jsonify({"status": "success", "data": watchtime_data})
+    return jsonify({
+        "status": "success", 
+        "data": watchtime_data,
+        "total_watchtime": total_watchtime  # Add total watchtime in milliseconds
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)
