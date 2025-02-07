@@ -25,12 +25,37 @@ function generateFallbackUUID() {
     });
 }
 
+// API key management
+async function ensureApiKey() {
+    const { apiKey } = await chrome.storage.local.get('apiKey');
+    if (apiKey) return apiKey;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/generate-api-key`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const { api_key } = await response.json();
+        await chrome.storage.local.set({ apiKey: api_key });
+        return api_key;
+    } catch (error) {
+        console.error('Failed to generate API key:', error);
+        throw error;
+    }
+}
+
 // API communication
 async function makeAuthenticatedRequest(endpoint, options = {}) {
-    const { apiKey } = await chrome.storage.local.get('apiKey');
+    const apiKey = await ensureApiKey();
     if (!apiKey) {
-        console.error('No API key found');
-        return;
+        throw new Error('No API key available');
     }
 
     const headers = {
@@ -46,6 +71,11 @@ async function makeAuthenticatedRequest(endpoint, options = {}) {
         });
 
         if (!response.ok) {
+            if (response.status === 401) {
+                // If unauthorized, clear the stored API key and try again
+                await chrome.storage.local.remove('apiKey');
+                return makeAuthenticatedRequest(endpoint, options);
+            }
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
@@ -53,41 +83,6 @@ async function makeAuthenticatedRequest(endpoint, options = {}) {
     } catch (error) {
         console.error('Request failed:', error);
         throw error;
-    }
-}
-
-async function sendDataToFlask(watchtime) {
-    const data = {
-        watchtime,
-        uniqueIdentifier,
-        trackingEnabled: true, // default to true if not set
-        dailyLimit: 0 // default to 0 if not set
-    };
-
-    debugLog('API Request', 'Sending watchtime update', {
-        url: '/update',
-        method: 'POST',
-        ...data
-    });
-
-    try {
-        await makeAuthenticatedRequest('/update', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-        const result = await makeAuthenticatedRequest('/get-watchtime');
-        debugLog('API Success', 'Watch time updated successfully', {
-            response: result,
-            sentData: data
-        });
-    } catch (error) {
-        console.error('Error sending data to Flask app:', error);
-        debugLog('API Error', 'Error sending data, scheduling retry', {
-            error: error.message,
-            retryDelay: RETRY_DELAY,
-            watchtime
-        });
-        setTimeout(() => sendDataToFlask(watchtime), RETRY_DELAY);
     }
 }
 
@@ -413,7 +408,57 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 });
 
+// Initialize everything
+async function initialize() {
+    try {
+        await ensureApiKey();
+        await initializeUniqueIdentifier();
+        // Start other initialization tasks...
+    } catch (error) {
+        console.error('Initialization failed:', error);
+    }
+}
+
 // Start initialization
+initialize();
+
+// Send data to Flask
+async function sendDataToFlask(watchtime) {
+    const data = {
+        watchtime,
+        uniqueIdentifier,
+        trackingEnabled: true, // default to true if not set
+        dailyLimit: 0 // default to 0 if not set
+    };
+
+    debugLog('API Request', 'Sending watchtime update', {
+        url: '/update',
+        method: 'POST',
+        ...data
+    });
+
+    try {
+        await makeAuthenticatedRequest('/update', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        const result = await makeAuthenticatedRequest('/get-watchtime');
+        debugLog('API Success', 'Watch time updated successfully', {
+            response: result,
+            sentData: data
+        });
+    } catch (error) {
+        console.error('Error sending data to Flask app:', error);
+        debugLog('API Error', 'Error sending data, scheduling retry', {
+            error: error.message,
+            retryDelay: RETRY_DELAY,
+            watchtime
+        });
+        setTimeout(() => sendDataToFlask(watchtime), RETRY_DELAY);
+    }
+}
+
+// Initialize unique identifier
 async function initializeUniqueIdentifier() {
     debugLog('Initialization', 'Starting uniqueIdentifier initialization');
     try {
@@ -437,5 +482,3 @@ async function initializeUniqueIdentifier() {
         setTimeout(initializeUniqueIdentifier, RETRY_DELAY);
     }
 }
-
-initializeUniqueIdentifier();

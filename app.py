@@ -7,7 +7,14 @@ import functools
 import hashlib
 
 app = Flask(__name__)
-CORS(app)
+# Configure CORS with more specific settings
+CORS(app, resources={
+    r"/*": {
+        "origins": ["chrome-extension://*", "https://binge-master.mindthevirt.com"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "X-API-Key"]
+    }
+})
 
 # SQLite database setup
 DATABASE = '/netflix-tracker-db/watchtime.db'
@@ -57,8 +64,11 @@ def require_api_key(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route('/generate-api-key', methods=['POST'])
+@app.route('/generate-api-key', methods=['POST', 'OPTIONS'])
 def generate_api_key():
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     # Generate a secure random API key
     api_key = secrets.token_urlsafe(32)
     api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
@@ -74,9 +84,12 @@ def generate_api_key():
     except sqlite3.IntegrityError:
         return jsonify({"error": "Failed to generate API key"}), 500
 
-@app.route('/update', methods=['POST'])
+@app.route('/update', methods=['POST', 'OPTIONS'])
 @require_api_key
 def update_watchtime():
+    if request.method == 'OPTIONS':
+        return '', 204
+        
     data = request.json
     print(data)
     watchtime = data.get('watchtime')  # Watchtime in milliseconds
@@ -97,9 +110,12 @@ def update_watchtime():
     print(f"Received data from {uniqueIdentifier}: {data}")
     return jsonify({"status": "success", "message": "Data received"})
 
-@app.route('/get-watchtime', methods=['GET'])
+@app.route('/get-watchtime', methods=['GET', 'OPTIONS'])
 @require_api_key
 def get_watchtime():
+    if request.method == 'OPTIONS':
+        return '', 204
+        
     uniqueIdentifier = request.args.get('uniqueIdentifier')  # Get unique identifier from query params
     # Fetch watchtime data for the specified user
     with sqlite3.connect(DATABASE) as conn:

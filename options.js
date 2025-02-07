@@ -5,6 +5,27 @@ const resetButton = document.getElementById('resetButton');
 const exportButton = document.getElementById('exportButton');
 const dailyLimit = document.getElementById('dailyLimit');
 
+// Function to make authenticated requests
+async function makeAuthenticatedRequest(endpoint) {
+  const { apiKey } = await chrome.storage.local.get('apiKey');
+  if (!apiKey) {
+    throw new Error('No API key available');
+  }
+
+  const response = await fetch(`https://binge-master.mindthevirt.com${endpoint}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 // Load current settings
 chrome.storage.sync.get(['trackingEnabled'], (result) => {
   trackingEnabled.checked = result.trackingEnabled !== false;
@@ -79,12 +100,8 @@ exportButton.addEventListener('click', async () => {
       throw new Error('No unique identifier found');
     }
 
-    // Make API request with the identifier
-    const response = await fetch(`https://binge-master.mindthevirt.com/get-watchtime?uniqueIdentifier=${result.uniqueIdentifier}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch watchtime data');
-    }
-    const watchData = await response.json();
+    // Make authenticated API request with the identifier
+    const watchData = await makeAuthenticatedRequest(`/get-watchtime?uniqueIdentifier=${result.uniqueIdentifier}`);
     console.log('Raw API response:', watchData);
     
     // Ensure we have an array to work with
@@ -98,33 +115,29 @@ exportButton.addEventListener('click', async () => {
     if (!Array.isArray(watchDataArray)) {
       throw new Error('Invalid data format received from server');
     }
-    
-    // Prepare CSV data
-    const data = [
-      ['Timestamp', 'Watchtime (minutes)'],
+
+    // Format the data for CSV
+    const csvContent = [
+      ['Date', 'Watchtime (minutes)'],
       ...watchDataArray.map(entry => [
-        entry.timestamp,
-        (entry.watchtime / 60000).toFixed(2) // Convert milliseconds to minutes with 2 decimal places
+        new Date(entry.timestamp).toLocaleString(),
+        (entry.watchtime / 60000).toFixed(2)
       ])
-    ];
-    
-    // Create and download CSV
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + data.map(row => row.join(",")).join("\n");
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "netflix_watchtime.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    ].map(row => row.join(',')).join('\n');
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `netflix-watchtime-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   } catch (error) {
-    console.error('Export error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack
-    });
+    console.error('Error exporting data:', error);
     alert('Failed to export data: ' + error.message);
   }
 });

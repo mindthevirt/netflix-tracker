@@ -10,6 +10,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsButton = document.getElementById('settingsButton');
   const exportButton = document.getElementById('exportButton');
 
+  // Function to make authenticated requests
+  async function makeAuthenticatedRequest(endpoint) {
+    const { apiKey } = await chrome.storage.local.get('apiKey');
+    if (!apiKey) {
+      throw new Error('No API key available');
+    }
+
+    const response = await fetch(`https://binge-master.mindthevirt.com${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   // Retrieve unique identifier
   chrome.storage.local.get(['uniqueIdentifier'], (result) => {
     const uniqueIdentifier = result.uniqueIdentifier;
@@ -17,13 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to fetch watchtime data from Flask app
     async function fetchWatchtimeData() {
-      const url = `https://binge-master.mindthevirt.com/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`;
-      console.log('Fetching watchtime data from:', url); // Debugging
-
       try {
-        const response = await fetch(url);
-        const data = await response.json();
-
+        const data = await makeAuthenticatedRequest(`/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`);
         console.log('Fetched watchtime data:', data); // Debugging
 
         if (data.status === 'success') {
@@ -33,83 +49,86 @@ document.addEventListener('DOMContentLoaded', () => {
           return [];
         }
       } catch (error) {
-        console.error('Error fetching watchtime data:', error);
-        return [];
+        console.error('Failed to fetch watchtime data:', error);
+        throw error;
       }
     }
 
     // Function to update the popup UI
     async function updatePopupUI() {
-      console.log('Updating popup data...'); // Log to console
+      try {
+        console.log('Updating popup data...'); // Log to console
 
-      // Fetch watchtime data from Flask app
-      const watchtimeData = await fetchWatchtimeData();
+        // Fetch watchtime data from Flask app
+        const watchtimeData = await fetchWatchtimeData();
 
-      // Calculate total watchtime
-      const totalWatchtime = watchtimeData.reduce((total, entry) => total + entry.watchtime, 0);
-      const minutes = (totalWatchtime / 60000).toFixed(0); // Convert to minutes
+        // Calculate total watchtime
+        const totalWatchtime = watchtimeData.reduce((total, entry) => total + entry.watchtime, 0);
+        const minutes = (totalWatchtime / 60000).toFixed(0); // Convert to minutes
 
-      // Update summary
-      if (summaryElement) {
-        summaryElement.textContent = `Total Watchtime: ${minutes} minutes`;
-      }
+        // Update summary
+        if (summaryElement) {
+          summaryElement.textContent = `Total Watchtime: ${minutes} minutes`;
+        }
 
-      // Initialize chart data
-      const dailyWatchtime = [0, 0, 0, 0, 0, 0, 0]; // Initialize for 7 days
+        // Initialize chart data
+        const dailyWatchtime = [0, 0, 0, 0, 0, 0, 0]; // Initialize for 7 days
 
-      // Populate daily watchtime from history
-      watchtimeData.forEach(entry => {
-        const day = new Date(entry.timestamp).getDay(); // 0 (Sunday) to 6 (Saturday)
-        dailyWatchtime[day] += entry.watchtime / 60000; // Convert to minutes
-      });
-      
-      if (!ctx) {
-        console.error('Chart context not found');
-        return;
-      }
+        // Populate daily watchtime from history
+        watchtimeData.forEach(entry => {
+          const day = new Date(entry.timestamp).getDay(); // 0 (Sunday) to 6 (Saturday)
+          dailyWatchtime[day] += entry.watchtime / 60000; // Convert to minutes
+        });
+        
+        if (!ctx) {
+          console.error('Chart context not found');
+          return;
+        }
 
-      // Initialize or update the chart
-      if (ctx) {
-        if (!chart) {
-          chart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-              datasets: [{
-                label: 'Watchtime (minutes)',
-                data: dailyWatchtime,
-                backgroundColor: 'rgba(229, 9, 20, 0.2)',
-                borderColor: 'rgba(229, 9, 20, 1)',
-                borderWidth: 1
-              }]
-            },
-            options: {
-              scales: {
-                y: {
-                  beginAtZero: true
+        // Initialize or update the chart
+        if (ctx) {
+          if (!chart) {
+            chart = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                datasets: [{
+                  label: 'Watchtime (minutes)',
+                  data: dailyWatchtime,
+                  backgroundColor: 'rgba(229, 9, 20, 0.2)',
+                  borderColor: 'rgba(229, 9, 20, 1)',
+                  borderWidth: 1
+                }]
+              },
+              options: {
+                scales: {
+                  y: {
+                    beginAtZero: true
+                  }
                 }
               }
-            }
-          });
-        } else {
-          // Update existing chart data
-          chart.data.datasets[0].data = dailyWatchtime;
-          chart.update();
+            });
+          } else {
+            // Update existing chart data
+            chart.data.datasets[0].data = dailyWatchtime;
+            chart.update();
+          }
         }
-      } else {
-        console.error('Chart context not found');
+      } catch (error) {
+        console.error('Error updating popup UI:', error);
+        if (summaryElement) {
+          summaryElement.textContent = 'Error loading watchtime data';
+        }
       }
-
-      console.log('Popup data updated:', { minutes, dailyWatchtime }); // Log updated data
     }
 
     // Update the popup UI immediately when opened
     updatePopupUI();
 
     // Set up a timer to update the popup UI every 5 seconds
-    const updateInterval = setInterval(updatePopupUI, 120000); // 120000ms = 120 seconds
+    const updateInterval = setInterval(updatePopupUI, 5000);
 
-    // Clean up the interval when the popup is closed
+    // Clean up interval when popup is closed
     window.addEventListener('unload', () => {
       clearInterval(updateInterval);
       console.log('Popup closed. Update interval cleared.'); // Log when popup is closed
