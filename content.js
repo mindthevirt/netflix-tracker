@@ -13,15 +13,33 @@ function debugLog(context, message, data = {}) {
 }
 
 // Safer message sending that doesn't throw on invalid context
-function trySendMessage(message) {
+async function trySendMessage(message) {
     if (document.location.href.includes('/watch/')) {
         debugLog('Message', 'Attempting to send message', { message });
         try {
-            const sendPromise = chrome.runtime?.sendMessage(message);
+            // Get API key from storage
+            const { apiKey } = await chrome.storage.local.get('apiKey');
+            if (!apiKey) {
+                debugLog('Message', 'No API key found - requesting new one');
+                await requestNewApiKey();
+                return;
+            }
+
+            const sendPromise = chrome.runtime?.sendMessage({
+                ...message,
+                apiKey
+            });
+            
             if (sendPromise && typeof sendPromise.catch === 'function') {
                 sendPromise
                     .then(() => debugLog('Message', 'Message sent successfully', { message }))
-                    .catch((error) => debugLog('Message', 'Failed to send message', { error, message }));
+                    .catch(async (error) => {
+                        debugLog('Message', 'Failed to send message', { error, message });
+                        if (error.message?.includes('Invalid API key')) {
+                            // If API key is invalid, request a new one
+                            await requestNewApiKey();
+                        }
+                    });
             }
         } catch (error) {
             debugLog('Message', 'Error sending message', { error, message });
@@ -30,6 +48,34 @@ function trySendMessage(message) {
         debugLog('Message', 'Not sending message - not on watch page');
     }
 }
+
+async function requestNewApiKey() {
+    try {
+        const response = await fetch('https://binge-master.mindthevirt.com/generate-api-key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to generate API key');
+        }
+        
+        const { api_key } = await response.json();
+        await chrome.storage.local.set({ apiKey: api_key });
+        debugLog('API', 'Successfully generated and stored new API key');
+    } catch (error) {
+        debugLog('API', 'Failed to generate new API key', { error });
+    }
+}
+
+// Check for API key on startup
+chrome.storage.local.get('apiKey', async ({ apiKey }) => {
+    if (!apiKey) {
+        await requestNewApiKey();
+    }
+});
 
 function handleVideoEnd() {
     debugLog('Video', 'Video ended event triggered');

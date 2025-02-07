@@ -26,44 +26,56 @@ function generateFallbackUUID() {
 }
 
 // API communication
+async function makeAuthenticatedRequest(endpoint, options = {}) {
+    const { apiKey } = await chrome.storage.local.get('apiKey');
+    if (!apiKey) {
+        console.error('No API key found');
+        return;
+    }
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+        ...(options.headers || {})
+    };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            headers
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Request failed:', error);
+        throw error;
+    }
+}
+
 async function sendDataToFlask(watchtime) {
-    const url = `${API_BASE_URL}/update`;
-    
-    // Get current settings
-    const settings = await chrome.storage.sync.get(['trackingEnabled', 'dailyLimit']);
-    
     const data = {
         watchtime,
         uniqueIdentifier,
-        trackingEnabled: settings.trackingEnabled !== false, // default to true if not set
-        dailyLimit: settings.dailyLimit || 0 // default to 0 if not set
+        trackingEnabled: true, // default to true if not set
+        dailyLimit: 0 // default to 0 if not set
     };
 
     debugLog('API Request', 'Sending watchtime update', {
-        url,
+        url: '/update',
         method: 'POST',
         ...data
     });
 
     try {
-        const response = await fetch(url, {
+        await makeAuthenticatedRequest('/update', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
+            body: JSON.stringify(data)
         });
-        
-        if (!response.ok) {
-            debugLog('API Error', `Failed with status ${response.status}`, {
-                status: response.status,
-                statusText: response.statusText,
-                url
-            });
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
+        const result = await makeAuthenticatedRequest('/get-watchtime');
         debugLog('API Success', 'Watch time updated successfully', {
             response: result,
             sentData: data
@@ -81,39 +93,34 @@ async function sendDataToFlask(watchtime) {
 
 // Get daily watchtime from API
 async function getDailyWatchtime() {
-    const url = `${API_BASE_URL}/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`;
-    debugLog('API Request', 'Fetching daily watchtime', { url });
-
     try {
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.status === 'success') {
+        const result = await makeAuthenticatedRequest('/get-watchtime');
+        if (result.status === 'success') {
             // Calculate total watchtime for today only
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
             
-            const todayWatchtime = data.data
+            const todayWatchtime = result.data
                 .filter(entry => new Date(entry.timestamp) >= todayStart)
                 .reduce((total, entry) => total + entry.watchtime, 0);
             
             debugLog('API Success', 'Retrieved daily watchtime', {
                 todayWatchtime,
-                entriesCount: data.data.length,
+                entriesCount: result.data.length,
                 todayStart: todayStart.toISOString()
             });
             return todayWatchtime;
         } else {
             debugLog('API Warning', 'Unexpected response status', {
-                status: data.status,
-                data
+                status: result.status,
+                data: result
             });
         }
     } catch (error) {
         console.error('Error fetching daily watchtime:', error);
         debugLog('API Error', 'Failed to fetch daily watchtime', {
             error: error.message,
-            url
+            url: '/get-watchtime'
         });
     }
     return 0;

@@ -12,7 +12,8 @@
     "tabs",
     "idle",
     "storage",
-    "alarms"
+    "alarms",
+    "secureStorage"
   ],
   "host_permissions": [
     "*://*.netflix.com/*",
