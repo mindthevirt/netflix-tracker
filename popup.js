@@ -24,7 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle email submission
   submitEmailButton.addEventListener('click', async () => {
     const email = emailInput.value;
-    if (!email) {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    
+    if (!email || !emailRegex.test(email)) {
       emailError.textContent = 'Please enter a valid email address';
       emailError.style.display = 'block';
       return;
