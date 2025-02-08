@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_cors import CORS
 import secrets
 import functools
@@ -37,6 +37,15 @@ def init_db():
             CREATE TABLE IF NOT EXISTS api_keys (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 api_key_hash TEXT UNIQUE NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        ''')
+        # Create users table for email storage
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uniqueIdentifier TEXT UNIQUE NOT NULL,
+                email TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
         ''')
@@ -118,22 +127,23 @@ def get_watchtime():
         
     uniqueIdentifier = request.args.get('uniqueIdentifier')  # Get unique identifier from query params
     
-    # Get today's date in ISO format for comparison
-    today = datetime.now().date().isoformat()
+    # Get date 7 days ago in ISO format for comparison
+    today = datetime.now().date()
+    seven_days_ago = (today - timedelta(days=7)).isoformat()
     
-    # Fetch watchtime data for the specified user for today
+    # Fetch watchtime data for the specified user for the last 7 days
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT timestamp, watchtime 
             FROM watchtime
             WHERE uniqueIdentifier = ?
-              AND date(timestamp) = ?
+              AND date(timestamp) >= ?
             ORDER BY timestamp
-        ''', (uniqueIdentifier, today))
+        ''', (uniqueIdentifier, seven_days_ago))
         rows = cursor.fetchall()
 
-    # Calculate total watchtime for today and include individual entries
+    # Calculate total watchtime and include individual entries
     total_watchtime = sum(row[1] for row in rows)  # Sum all watchtime entries
     watchtime_data = [{"timestamp": row[0], "watchtime": row[1]} for row in rows]
 
@@ -142,6 +152,39 @@ def get_watchtime():
         "data": watchtime_data,
         "total_watchtime": total_watchtime  # Add total watchtime in milliseconds
     })
+
+@app.route('/register', methods=['POST'])
+@require_api_key
+def register_user():
+    data = request.get_json()
+    email = data.get('email')
+    unique_identifier = data.get('uniqueIdentifier')
+    
+    if not email or not unique_identifier:
+        return jsonify({'error': 'Email and uniqueIdentifier are required'}), 400
+    
+    try:
+        with sqlite3.connect(DATABASE) as conn:
+            # Check if user already exists
+            existing_user = conn.execute(
+                'SELECT id FROM users WHERE uniqueIdentifier = ?', 
+                (unique_identifier,)
+            ).fetchone()
+            
+            if existing_user:
+                return jsonify({'error': 'User already registered'}), 409
+                
+            # Insert new user
+            conn.execute(
+                'INSERT INTO users (uniqueIdentifier, email, created_at) VALUES (?, ?, ?)',
+                (unique_identifier, email, datetime.now().isoformat())
+            )
+            conn.commit()
+            
+        return jsonify({'message': 'User registered successfully'}), 201
+        
+    except sqlite3.Error as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

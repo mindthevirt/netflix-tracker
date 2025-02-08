@@ -4,11 +4,53 @@
   <title>Binge Guard</title>
   <link rel="stylesheet" href="styles.css">
   <script src="lib/chart.js"></script>
+  <style>
+    .email-form {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8f8f8;
+      border-radius: 8px;
+      display: none;
+    }
+    .email-form p {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    .email-form input[type="email"] {
+      width: 90%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .email-form button {
+      width: 100%;
+      padding: 8px;
+      background-color: #e50914;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .email-form .error {
+      color: #e50914;
+      font-size: 12px;
+      margin-top: 5px;
+      display: none;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Binge Guard</h1>
-    
+    <div class="email-form" id="emailForm">
+      <p>Please enter your email to complete setup:</p>
+      <input type="email" id="email" placeholder="Enter your email" required>
+      <button id="submitEmail">Submit</button>
+      <p class="error" id="emailError"></p>
+    </div>
+
     <div class="chart-container">
       <canvas id="watchtimeChart"></canvas>
     </div>

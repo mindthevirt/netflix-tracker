@@ -9,26 +9,75 @@ document.addEventListener('DOMContentLoaded', () => {
   const summaryElement = document.getElementById('watchtimeSummary');
   const settingsButton = document.getElementById('settingsButton');
   const exportButton = document.getElementById('exportButton');
+  const emailForm = document.getElementById('emailForm');
+  const emailInput = document.getElementById('email');
+  const submitEmailButton = document.getElementById('submitEmail');
+  const emailError = document.getElementById('emailError');
+
+  // Check if email is registered
+  chrome.storage.local.get(['emailRegistered'], (result) => {
+    if (!result.emailRegistered) {
+      emailForm.style.display = 'block';
+    }
+  });
+
+  // Handle email submission
+  submitEmailButton.addEventListener('click', async () => {
+    const email = emailInput.value;
+    if (!email) {
+      emailError.textContent = 'Please enter a valid email address';
+      emailError.style.display = 'block';
+      return;
+    }
+
+    try {
+      const response = await makeAuthenticatedRequest('/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: email,
+          uniqueIdentifier: await getUniqueIdentifier()
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        await chrome.storage.local.set({ emailRegistered: true });
+        emailForm.style.display = 'none';
+      } else {
+        emailError.textContent = data.error || 'Failed to register email';
+        emailError.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Failed to register email:', error);
+      emailError.textContent = 'Failed to register email. Please try again.';
+      emailError.style.display = 'block';
+    }
+  });
 
   // Function to make authenticated requests
-  async function makeAuthenticatedRequest(endpoint) {
+  async function makeAuthenticatedRequest(endpoint, options = {}) {
     const { apiKey } = await chrome.storage.local.get('apiKey');
     if (!apiKey) {
       throw new Error('No API key available');
     }
 
     const response = await fetch(`https://binge-master.mindthevirt.com${endpoint}`, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': apiKey
+        'X-API-Key': apiKey,
+        ...options.headers
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    return response;
+  }
 
-    return response.json();
+  // Function to get unique identifier
+  async function getUniqueIdentifier() {
+    const result = await chrome.storage.local.get(['uniqueIdentifier']);
+    return result.uniqueIdentifier;
   }
 
   // Retrieve unique identifier
@@ -39,10 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to fetch watchtime data from Flask app
     async function fetchWatchtimeData() {
       try {
-        const data = await makeAuthenticatedRequest(`/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`);
-        console.log('Fetched watchtime data:', data); // Debugging
-
-        if (data.status === 'success') {
+        const response = await makeAuthenticatedRequest(`/get-watchtime?uniqueIdentifier=${uniqueIdentifier}`);
+        console.log('Fetched watchtime data:', response); // Debugging
+        
+        const data = await response.json();
+        console.log('Parsed watchtime data:', data); // Debugging
+        
+        if (response.ok && data.status === 'success') {
           return data.data;
         } else {
           console.error('Failed to fetch watchtime data:', data);
@@ -50,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (error) {
         console.error('Failed to fetch watchtime data:', error);
-        throw error;
+        return [];
       }
     }
 
@@ -61,28 +113,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Fetch watchtime data from Flask app
         const watchtimeData = await fetchWatchtimeData();
+        console.log('Received watchtime data:', watchtimeData); // Debugging
 
-        // Calculate total watchtime
-        const totalWatchtime = watchtimeData.reduce((total, entry) => total + entry.watchtime, 0);
-        const minutes = (totalWatchtime / 60000).toFixed(0); // Convert to minutes
+        // Initialize chart data for last 7 days
+        const dailyWatchtime = Array(7).fill(0);
+        const today = new Date();
+        
+        // Populate daily watchtime from history (keep in milliseconds for now)
+        watchtimeData.forEach(entry => {
+          const entryDate = new Date(entry.timestamp);
+          const dayDiff = Math.floor((today - entryDate) / (1000 * 60 * 60 * 24));
+          if (dayDiff < 7) {
+            const dayIndex = (today.getDay() - dayDiff + 7) % 7; // Ensure positive index
+            dailyWatchtime[dayIndex] += entry.watchtime; // Add raw milliseconds
+          }
+        });
+
+        // Calculate total watchtime (convert milliseconds to minutes at the end)
+        const totalWatchtimeMs = dailyWatchtime.reduce((total, ms) => total + ms, 0);
+        const totalMinutes = Math.round(totalWatchtimeMs / 60000); // Convert total ms to minutes
+
+        // Convert daily watchtime array to minutes for the chart
+        const dailyWatchtimeMinutes = dailyWatchtime.map(ms => Math.round(ms / 60000));
 
         // Update summary
         if (summaryElement) {
-          summaryElement.textContent = `Total Watchtime: ${minutes} minutes`;
-        }
-
-        // Initialize chart data
-        const dailyWatchtime = [0, 0, 0, 0, 0, 0, 0]; // Initialize for 7 days
-
-        // Populate daily watchtime from history
-        watchtimeData.forEach(entry => {
-          const day = new Date(entry.timestamp).getDay(); // 0 (Sunday) to 6 (Saturday)
-          dailyWatchtime[day] += entry.watchtime / 60000; // Convert to minutes
-        });
-        
-        if (!ctx) {
-          console.error('Chart context not found');
-          return;
+          summaryElement.textContent = `Total Watchtime: ${totalMinutes} minutes`;
         }
 
         // Initialize or update the chart
@@ -94,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
                 datasets: [{
                   label: 'Watchtime (minutes)',
-                  data: dailyWatchtime,
+                  data: dailyWatchtimeMinutes,
                   backgroundColor: 'rgba(229, 9, 20, 0.2)',
                   borderColor: 'rgba(229, 9, 20, 1)',
                   borderWidth: 1
@@ -103,19 +159,22 @@ document.addEventListener('DOMContentLoaded', () => {
               options: {
                 scales: {
                   y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    title: {
+                      display: true,
+                      text: 'Minutes'
+                    }
                   }
                 }
               }
             });
           } else {
-            // Update existing chart data
-            chart.data.datasets[0].data = dailyWatchtime;
+            chart.data.datasets[0].data = dailyWatchtimeMinutes;
             chart.update();
           }
         }
       } catch (error) {
-        console.error('Error updating popup UI:', error);
+        console.error('Error updating popup:', error);
         if (summaryElement) {
           summaryElement.textContent = 'Error loading watchtime data';
         }
@@ -133,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
       clearInterval(updateInterval);
       console.log('Popup closed. Update interval cleared.'); // Log when popup is closed
     });
-
     // Button event handlers
     if (settingsButton) {
       settingsButton.addEventListener('click', () => {

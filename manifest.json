@@ -9,10 +9,10 @@
     "128": "icons/icon128.png"
   },
   "permissions": [
-    "tabs",
-    "idle",
     "storage",
-    "alarms"
+    "tabs",
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
     "*://*.netflix.com/*",

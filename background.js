@@ -248,10 +248,23 @@ function stopTrackingForTab(tabId) {
 }
 
 // Keep alive functionality
+let wakeLock = null;
+async function acquireWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('system');
+            debugLog('WakeLock', 'Wake lock acquired');
+        }
+    } catch (err) {
+        debugLog('WakeLock', 'Error acquiring wake lock', { error: err });
+    }
+}
+
 async function keepAlive() {
     if (activeWatching.size > 0) {
-        const keepAlivePort = chrome.runtime.connect({ name: 'keepAlive' });
-        keepAlivePort.disconnect();
+        if (!wakeLock || wakeLock.released) {
+            await acquireWakeLock();
+        }
     }
 }
 
@@ -404,23 +417,64 @@ chrome.storage.local.onChanged.addListener((changes) => {
     }
 });
 
+// Listen for extension installation
+chrome.runtime.onInstalled.addListener(async () => {
+    debugLog('Install', 'Extension installed/updated');
+    
+    // Find all existing Netflix tabs
+    const tabs = await chrome.tabs.query({
+        url: "*://*.netflix.com/*"
+    });
+    
+    // Inject content script into each Netflix tab
+    for (const tab of tabs) {
+        try {
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['content.js']
+            });
+            debugLog('Install', 'Injected content script into existing tab', { tabId: tab.id, url: tab.url });
+        } catch (error) {
+            debugLog('Install', 'Failed to inject content script', { error, tabId: tab.id });
+        }
+    }
+});
+
 // Initialize alarms
 chrome.alarms.create(ALARM_NAME, {
     periodInMinutes: 0.5 // Run every 30 seconds
 });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
+// Improved alarm listener with debug logging
+chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === ALARM_NAME) {
-        updateActiveSessions();
+        debugLog('Alarm', 'Alarm triggered', { 
+            name: alarm.name, 
+            scheduledTime: new Date(alarm.scheduledTime).toISOString(),
+            activeSessions: activeWatching.size
+        });
+        
+        // Ensure wake lock is active if we have active sessions
+        if (activeWatching.size > 0 && (!wakeLock || wakeLock.released)) {
+            await acquireWakeLock();
+        }
+        
+        await updateActiveSessions();
     }
+});
+
+// Log when the background script starts
+debugLog('Initialization', 'Background script started', {
+    timestamp: new Date().toISOString()
 });
 
 // Initialize everything
 async function initialize() {
     try {
-        await ensureApiKey();
         await initializeUniqueIdentifier();
-        // Start other initialization tasks...
+        await ensureApiKey();
+        await getDailyWatchtime();
+        keepAlive();
     } catch (error) {
         console.error('Initialization failed:', error);
     }
