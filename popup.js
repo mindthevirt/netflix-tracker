@@ -126,7 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
           const entryDate = new Date(entry.timestamp);
           const dayDiff = Math.floor((today - entryDate) / (1000 * 60 * 60 * 24));
           if (dayDiff < 7) {
-            const dayIndex = (today.getDay() - dayDiff + 7) % 7; // Ensure positive index
+            // Get the day of week for the entry date itself
+            const dayIndex = entryDate.getDay();
             dailyWatchtime[dayIndex] += entry.watchtime; // Add raw milliseconds
           }
         });
